@@ -1382,8 +1382,9 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
 .login-reveal:hover { color: var(--aps-primary); background: #f2fbfc; }
 .login-reveal:focus-visible { outline: 2px solid var(--aps-primary); outline-offset: 1px; }
 
-/* Why you are here, and what went wrong — distinct treatments, both readable. */
-.login-note,
+/* What went wrong. There was a companion "sign in to continue to <path>"
+   notice; it printed the raw route, so a bounce from the root read "continue
+   to /." and it was removed. The redirect itself still happens. */
 .login-error {
   display: flex;
   align-items: flex-start;
@@ -1393,14 +1394,6 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
   border-radius: 8px;
   padding: 9px 11px;
   margin-bottom: 14px;
-}
-.login-note {
-  background: #f2fbfc;
-  border: 1px solid rgba(0, 120, 144, 0.25);
-  color: var(--aps-heading);
-}
-.login-note i { color: var(--aps-primary); margin-top: 2px; }
-.login-error {
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;

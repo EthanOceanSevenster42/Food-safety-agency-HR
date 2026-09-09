@@ -30,10 +30,6 @@ export default function LoginPage() {
     }
   }
 
-  // Where the user was sent back to sign in from, so the message says why they
-  // are looking at this page rather than the one they asked for.
-  const cameFrom = location.state?.from?.pathname;
-
   return (
     <div className="login-shell">
       <form className="login-card" onSubmit={handleSubmit}>
@@ -44,13 +40,6 @@ export default function LoginPage() {
         <div className="login-eyebrow">Food Safety Agency</div>
         <h1 className="login-title">People &amp; management hub</h1>
         <p className="login-subtitle">Sign in with your work email address.</p>
-
-        {cameFrom && !error && (
-          <div className="login-note">
-            <i className="fas fa-circle-info" aria-hidden="true" />
-            <span>Sign in to continue to <strong>{cameFrom}</strong>.</span>
-          </div>
-        )}
 
         {error && (
           <div className="login-error" role="alert">
