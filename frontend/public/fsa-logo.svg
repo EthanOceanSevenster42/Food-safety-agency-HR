@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 264 78" role="img" aria-label="Food Safety Agency">
+  <title>Food Safety Agency</title>
+  <!-- Skewed bar motif from the FSA mark, sitting over the FSA logotype -->
+  <g transform="skewX(-11)">
+    <rect x="16" y="8" width="16" height="12" fill="#088298"/>
+    <rect x="35" y="8" width="32" height="12" fill="#ED3237"/>
+    <rect x="70" y="8" width="16" height="12" fill="#727376"/>
+  </g>
+  <text x="6" y="56"
+        font-family="Jost, 'Trebuchet MS', Arial, Helvetica, sans-serif"
+        font-size="34" font-weight="600" letter-spacing="1.5" fill="#1a1b1d">FSA</text>
+  <!-- divider between mark and wordmark -->
+  <rect x="90" y="24" width="1" height="30" fill="#d8d9da"/>
+  <text x="104" y="43"
+        font-family="'IBM Plex Sans', Arial, Helvetica, sans-serif"
+        font-size="13" font-weight="600" letter-spacing="0.2" fill="#1a1b1d">Food Safety Agency</text>
+  <text x="104" y="56"
+        font-family="'IBM Plex Sans', Arial, Helvetica, sans-serif"
+        font-size="8" font-weight="400" letter-spacing="1.6" fill="#727376">PEOPLE &amp; MANAGEMENT HUB</text>
+</svg>

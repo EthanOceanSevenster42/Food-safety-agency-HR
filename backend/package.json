@@ -1,0 +1,42 @@
+{
+  "name": "fsa-hr-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node scripts/seed.js",
+    "seed:xlsx": "node scripts/generate-seed-xlsx.js",
+    "seed:data": "node scripts/generate-seed-data.js",
+    "schema": "node scripts/apply-pg-schema.js",
+    "seed:fsa": "node scripts/seed-fsa.js",
+    "colmap": "node scripts/gen-colmap.mjs",
+    "test:translate": "node scripts/test-translate.mjs",
+    "seed:hr": "node scripts/seed-fsa-hr.js",
+    "seed:leave": "node scripts/seed-leave-bulk.js"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^5.1.5",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "docx": "^9.6.1",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.1",
+    "html-to-pdfmake": "^2.5.33",
+    "image-size": "^2.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.12.0",
+    "mssql": "^11.0.1",
+    "multer": "^2.0.1",
+    "mysql2": "^3.22.6",
+    "nodemailer": "^6.9.16",
+    "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.15.1",
+    "pdfmake": "^0.3.8",
+    "pg": "^8.23.0",
+    "pizzip": "^3.2.0"
+  }
+}

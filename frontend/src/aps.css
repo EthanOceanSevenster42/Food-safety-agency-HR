@@ -1,0 +1,953 @@
+/* ---------------------------------------------------------------------------
+   APS design language.
+
+   Ported from the FSA APS system (APS-System-NextJS-dev) so the two platforms
+   read as one: dark navy sidebar, teal primary, photographic page background
+   with white page headings, and white rounded cards carrying a hairline ring
+   instead of a heavy border.
+
+   Everything is prefixed `aps-` and scoped so it does not collide with the
+   inherited stylesheet (styles.css).
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* APS palette */
+  --aps-primary: #007890;
+  --aps-primary-tint: #e0f2f5;
+  --aps-primary-ring: #e6f3f7;
+  --aps-accent: #00b4d8;
+
+  --aps-side: #0f172a;
+  --aps-side-border: #1e293b;
+  --aps-side-item: #94a3b8;
+  --aps-side-item-hover: #e2e8f0;
+  --aps-side-group: #475569;
+
+  --aps-heading: #111827;
+  --aps-body: #1f2937;
+  --aps-text: #374151;
+  --aps-muted: #6b7280;
+  --aps-hair: #f3f4f6;
+  --aps-line: #e5e7eb;
+
+  --aps-card: #ffffff;
+  --aps-card-shadow: 0 0 0 1px rgba(17, 24, 39, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+
+  /* status kinds — ok / warn / bad / na / info */
+  --aps-ok: #059669;          --aps-ok-bg: rgba(16, 185, 129, 0.12);
+  --aps-warn: #b45309;        --aps-warn-bg: #fef3c7;
+  --aps-bad: #dc2626;         --aps-bad-bg: rgba(239, 68, 68, 0.12);
+  --aps-na: #6b7280;          --aps-na-bg: #f3f4f6;
+  --aps-info: #007890;        --aps-info-bg: #e0f2f5;
+}
+
+/* --- shell ---------------------------------------------------------------- */
+.aps-app {
+  display: flex;
+  min-height: 100vh;
+  /* The photographic ground is what makes the APS pages read the way they do.
+     A dark wash goes over it: page headings sit straight on this background,
+     and over the bright parts of the photograph white text had no contrast at
+     all. Layering the gradient in the same shorthand avoids the stacking
+     problems an ::before overlay would cause. */
+  background:
+    linear-gradient(rgba(11, 22, 33, 0.62), rgba(11, 22, 33, 0.48)),
+    url('/background.jpg') no-repeat center center fixed;
+  background-size: cover, cover;
+  color: var(--aps-body);
+  font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.aps-side {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  background: var(--aps-side);
+  color: var(--aps-side-item);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  align-self: flex-start;
+  border-right: 1px solid var(--aps-side-border);
+  transition: width 0.25s ease, min-width 0.25s ease;
+  z-index: 20;
+}
+/* 216px is the width at which "Competence & registrations" fits on one line
+   next to its icon and count badge. */
+.aps-side--open { width: 216px; min-width: 216px; }
+.aps-side--collapsed { width: 64px; min-width: 64px; }
+
+.aps-brand {
+  padding: 10px 8px 8px;
+  border-bottom: 1px solid var(--aps-side-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+.aps-brand img {
+  height: 38px;
+  width: auto;
+  border-radius: 6px;
+  margin-bottom: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.aps-brand-title { font-size: 0.64rem; font-weight: 700; color: #fff; line-height: 1.2; text-align: center; }
+.aps-brand-sub { font-size: 0.52rem; color: #64748b; margin-top: 1px; text-align: center; }
+
+.aps-side-toggle {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--aps-side-border);
+  color: var(--aps-side-group);
+  cursor: pointer;
+  font-size: 0.6rem;
+  width: 100%;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.aps-side--open .aps-side-toggle { justify-content: flex-end; }
+.aps-side--collapsed .aps-side-toggle { justify-content: center; padding: 9px 0; }
+.aps-side-toggle:hover { color: var(--aps-accent); }
+
+.aps-nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 6px 10px;
+  /* A thin visible track: the hub plus the tools can outrun a short viewport,
+     and a hidden scrollbar made the last item look clipped. */
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+.aps-nav::-webkit-scrollbar { width: 6px; }
+.aps-nav::-webkit-scrollbar-track { background: transparent; }
+.aps-nav::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+.aps-nav::-webkit-scrollbar-thumb:hover { background: #475569; }
+.aps-side--collapsed .aps-nav { padding: 6px 0 10px; }
+
+.aps-nav-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--aps-side-group);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 6px;
+  margin: 9px 0 2px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+}
+.aps-nav-group:first-child { margin-top: 2px; }
+button.aps-nav-group { cursor: pointer; }
+button.aps-nav-group:hover { color: var(--aps-side-item); }
+
+.aps-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: var(--aps-side-item);
+  text-decoration: none;
+  background: transparent;
+  border-left: 2px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.aps-nav-link:hover { background: var(--aps-side-border); color: var(--aps-side-item-hover); }
+.aps-nav-link.active {
+  background: var(--aps-primary);
+  color: #fff;
+  font-weight: 600;
+  border-left-color: var(--aps-accent);
+}
+.aps-nav-link i { width: 15px; text-align: center; font-size: 0.74rem; flex: none; }
+/* Labels stay on one line; the ellipsis is a safety net for a longer label
+   added later, and the anchor carries a title so nothing is lost. */
+.aps-nav-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aps-side--collapsed .aps-nav-link {
+  justify-content: center;
+  gap: 0;
+  padding: 9px 0;
+  border-radius: 0;
+  border-left: none;
+}
+.aps-side--collapsed .aps-nav-link i { width: 100%; font-size: 0.95rem; }
+
+.aps-nav-count {
+  flex: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.aps-nav-link.active .aps-nav-count { background: rgba(0, 0, 0, 0.22); }
+
+.aps-side-foot { flex: none; border-top: 1px solid var(--aps-side-border); padding: 7px 6px; }
+.aps-user { display: flex; align-items: center; gap: 7px; padding: 3px 6px; margin-bottom: 4px; }
+.aps-avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--aps-primary);
+  display: flex; align-items: center; justify-content: center;
+  flex: none; color: #fff; font-size: 0.55rem;
+}
+.aps-user-name {
+  font-size: 0.62rem; font-weight: 600; color: #e2e8f0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.aps-user-role { font-size: 0.52rem; color: var(--aps-side-group); }
+
+.aps-signout {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 6px; border-radius: 4px;
+  background: transparent; border: 1px solid var(--aps-side-border);
+  color: #64748b; cursor: pointer; font-size: 0.62rem; font-weight: 500;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+.aps-signout:hover { background: rgba(239, 68, 68, 0.1); color: #f87171; }
+
+.aps-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* --- mobile: the sidebar slides in over the page, as it does in APS ------- */
+.aps-hamburger { display: none; }
+.aps-scrim { display: none; }
+
+@media (max-width: 860px) {
+  .aps-side {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 60;
+  }
+  /* On a phone the rail is always full width when open — a 64px rail plus a
+     drawer is two ways to do the same thing. */
+  .aps-side, .aps-side--collapsed { width: 216px; min-width: 216px; }
+  .aps-side--mobile-open { transform: translateX(0); }
+  .aps-side--collapsed .aps-nav-link {
+    justify-content: flex-start; gap: 9px; padding: 6px 10px;
+    border-radius: 4px; border-left: 2px solid transparent;
+  }
+  .aps-side--collapsed .aps-nav-link i { width: 15px; font-size: 0.74rem; }
+  .aps-side--collapsed .aps-nav { padding: 6px 6px 10px; }
+  /* The collapse control is meaningless in drawer mode. */
+  .aps-side-toggle { display: none; }
+
+  .aps-hamburger {
+    display: flex; align-items: center; justify-content: center;
+    position: fixed; top: 12px; left: 12px; z-index: 50;
+    width: 42px; height: 42px; border: none; border-radius: 8px;
+    background: #1e293b; color: #fff; cursor: pointer; font-size: 1rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  }
+  .aps-scrim {
+    display: block; position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.5); z-index: 55;
+  }
+}
+
+/* --- page ---------------------------------------------------------------- */
+.aps-page { padding: 32px 32px 48px; }
+
+.aps-page-head { margin-bottom: 24px; }
+.aps-crumb {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45); margin-bottom: 4px;
+}
+.aps-page-title {
+  margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;
+  color: #fff; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.aps-page-sub {
+  margin: 4px 0 0; font-size: 0.875rem; max-width: 90ch;
+  color: rgba(255, 255, 255, 0.9); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* --- card / section ------------------------------------------------------ */
+.aps-card {
+  background: var(--aps-card);
+  border-radius: 12px;
+  box-shadow: var(--aps-card-shadow);
+}
+.aps-card-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--aps-hair);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.aps-card-head h3 { margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--aps-heading); }
+.aps-card-head-note { font-size: 0.72rem; color: var(--aps-muted); }
+.aps-card-body { padding: 20px; }
+.aps-card-body--flush { padding: 0; }
+
+.aps-grid { display: grid; gap: 16px; }
+.aps-stack { display: flex; flex-direction: column; gap: 16px; }
+
+/* --- stat --------------------------------------------------------------- */
+.aps-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.aps-stat { background: var(--aps-card); border-radius: 12px; box-shadow: var(--aps-card-shadow); padding: 20px; }
+.aps-stat-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.aps-stat-label { font-size: 0.78rem; font-weight: 500; color: var(--aps-muted); }
+.aps-stat-icon {
+  width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 0.95rem;
+}
+.aps-stat-value {
+  font-size: 2rem; font-weight: 700; letter-spacing: -0.02em;
+  color: var(--aps-primary); margin-top: 10px; line-height: 1;
+}
+.aps-stat-note { font-size: 0.7rem; color: var(--aps-muted); margin-top: 6px; }
+
+/* --- table -------------------------------------------------------------- */
+.aps-table-wrap { overflow-x: auto; border-radius: 0 0 12px 12px; background: #fff; }
+.aps-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; background: #fff; }
+.aps-table th {
+  background: #fafafa; color: var(--aps-muted); text-align: left;
+  padding: 11px 18px; font-weight: 600; white-space: nowrap;
+  border-bottom: 1px solid var(--aps-hair);
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
+  position: sticky; top: 0; z-index: 5;
+}
+.aps-table td {
+  padding: 12px 18px; border-top: 1px solid var(--aps-hair);
+  font-size: 0.8rem; color: var(--aps-text); vertical-align: middle;
+}
+.aps-table tbody tr:hover { background: #f9fafb; }
+.aps-table .aps-td-strong { font-weight: 600; color: var(--aps-heading); }
+.aps-table .aps-td-mono { font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.aps-table-empty { text-align: center; padding: 2rem; color: #9ca3af; }
+
+/* Dense variant for work queues, where an extra column beats extra padding. */
+.aps-table--dense th { padding: 10px 12px; }
+.aps-table--dense td { padding: 10px 12px; }
+
+/* --- badge -------------------------------------------------------------- */
+.aps-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 12px;
+  font-size: 0.65rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.aps-badge--plain { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.aps-badge--ok   { background: var(--aps-ok-bg);   color: var(--aps-ok); }
+.aps-badge--warn { background: var(--aps-warn-bg); color: var(--aps-warn); }
+.aps-badge--bad  { background: var(--aps-bad-bg);  color: var(--aps-bad); }
+.aps-badge--na   { background: var(--aps-na-bg);   color: var(--aps-na); }
+.aps-badge--info { background: var(--aps-info-bg); color: var(--aps-info); }
+
+/* --- controls ----------------------------------------------------------- */
+.aps-input, .aps-select, .aps-textarea {
+  padding: 0.5rem 0.75rem; border: 1.5px solid var(--aps-line);
+  border-radius: 6px; font-size: 0.85rem; color: var(--aps-body);
+  background: #fff; width: 100%; box-sizing: border-box;
+  font-family: inherit; transition: all 0.2s ease;
+}
+.aps-input:focus, .aps-select:focus, .aps-textarea:focus {
+  outline: none; border-color: var(--aps-primary); box-shadow: 0 0 0 3px var(--aps-primary-ring);
+}
+.aps-label { font-size: 0.75rem; font-weight: 600; color: var(--aps-text); margin-bottom: 0.35rem; display: block; }
+.aps-field { margin-bottom: 0.85rem; }
+.aps-field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.85rem; }
+
+.aps-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0.5rem 0.9rem; border-radius: 6px; border: 1px solid transparent;
+  font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: all 0.15s ease;
+}
+.aps-btn--primary { background: var(--aps-primary); color: #fff; }
+.aps-btn--primary:hover { background: #00647a; }
+.aps-btn--ghost { background: #fff; border-color: var(--aps-line); color: var(--aps-text); }
+.aps-btn--ghost:hover { background: #f9fafb; border-color: #d1d5db; }
+.aps-btn--danger { background: #fff; border-color: #fecaca; color: var(--aps-bad); }
+.aps-btn--danger:hover { background: #fef2f2; }
+.aps-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.aps-chip {
+  border: 1px solid var(--aps-line); background: #fff; color: var(--aps-text);
+  font-size: 0.72rem; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+  cursor: pointer; font-family: inherit; transition: all 0.15s ease;
+}
+.aps-chip:hover { border-color: #d1d5db; background: #f9fafb; }
+.aps-chip.active { background: var(--aps-primary); border-color: var(--aps-primary); color: #fff; }
+.aps-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* --- misc --------------------------------------------------------------- */
+.aps-bar { display: block; height: 6px; border-radius: 3px; background: var(--aps-hair); overflow: hidden; }
+.aps-bar > span { display: block; height: 100%; border-radius: 3px; }
+
+.aps-note { font-size: 0.8rem; color: var(--aps-muted); line-height: 1.55; }
+.aps-meta { font-size: 0.72rem; color: var(--aps-muted); }
+.aps-hair { height: 1px; background: var(--aps-hair); border: 0; margin: 14px 0; }
+
+/* Left-accented callout used for findings / observations on HR home. */
+.aps-alert { border-left: 3px solid var(--aps-na); padding: 14px 16px; border-radius: 8px; background: #fff; box-shadow: var(--aps-card-shadow); }
+.aps-alert--bad  { border-left-color: var(--aps-bad); }
+.aps-alert--warn { border-left-color: var(--aps-warn); }
+.aps-alert--info { border-left-color: var(--aps-primary); }
+.aps-alert--na   { border-left-color: #9ca3af; }
+.aps-alert-title { font-weight: 600; color: var(--aps-heading); font-size: 0.88rem; margin: 8px 0 4px; }
+
+.aps-two-col { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+/* A queue table beside a narrow companion panel — the table needs the room. */
+/* The queue takes whatever is left; its companion panel is a fixed rail so
+   the table's columns are never the thing that gets squeezed. */
+.aps-two-col--wide { grid-template-columns: minmax(0, 1fr) 300px; }
+.aps-nowrap { white-space: nowrap; }
+
+/* A narrow list column beside the main panel (the document libraries). */
+.aps-two-col--sidebar { grid-template-columns: minmax(0, 250px) minmax(0, 1fr); }
+.aps-three-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start; }
+
+@media (max-width: 1000px) {
+  /* minmax(0, 1fr), not 1fr: a bare 1fr track keeps an automatic min-content
+     floor, so the wide leave-queue table stretched the single column to its
+     own 858px min-content width and the whole page scrolled sideways. */
+  .aps-two-col,
+  .aps-two-col--wide,
+  .aps-two-col--sidebar { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 860px) {
+  /* Clear the fixed hamburger. */
+  .aps-page { padding: 66px 18px 40px; }
+  .aps-page-title { font-size: 1.3rem; }
+  .aps-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+}
+
+@media (max-width: 560px) {
+  .aps-page { padding: 62px 12px 36px; }
+  .aps-stats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .aps-stat { padding: 14px; }
+  .aps-stat-value { font-size: 1.5rem; }
+  .aps-card-head { padding: 12px 14px; }
+  .aps-card-body { padding: 14px; }
+  .aps-field-row { grid-template-columns: minmax(0, 1fr); }
+  .aps-table th, .aps-table td { padding: 10px 12px; }
+  .aps-page-sub { font-size: 0.8rem; }
+}
+
+/* ---------------------------------------------------------------------------
+   Inherited pages inside the APS shell.
+
+   The asset / procurement / KPI / users pages were built for a solid light
+   body, which the old shell painted behind them. This shell puts them on the
+   photographic ground instead, so their headings were dark-on-photo and
+   unreadable. They get the same header treatment the hub pages use, and their
+   cards get the APS radius and hairline shadow so the two halves of the app
+   do not look like different products.
+   --------------------------------------------------------------------------- */
+.aps-main .page {
+  padding: 32px 32px 48px;
+  width: 100%;
+}
+
+/* Centred header: the title and its line of explanation read as one block,
+   with the page action centred beneath rather than pushed to a corner. */
+.aps-main .page-header {
+  margin-bottom: 24px;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+.aps-main .page-header > div { text-align: center; }
+.aps-main .page-header > div > p { margin-left: auto; margin-right: auto; max-width: 70ch; }
+.aps-main .page-header-actions,
+.aps-main .page-actions { justify-content: center; }
+.aps-main .page-header h1 {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.aps-main .page-header .muted,
+.aps-main .page-header > div > p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Anything that carries content needs to be opaque over the photo. */
+.aps-main .analytics-card,
+.aps-main .empty-state,
+.aps-main .tab-strip {
+  background: var(--aps-card);
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--aps-card-shadow);
+}
+.aps-main .empty-state { border: 1px dashed var(--aps-line); }
+
+/* A translucent tint is invisible on a photograph. */
+.aps-main .error {
+  background: #fff;
+  border: none;
+  border-left: 3px solid var(--aps-bad);
+  border-radius: 8px;
+  box-shadow: var(--aps-card-shadow);
+  color: var(--aps-bad);
+}
+
+@media (max-width: 860px) {
+  .aps-main .page { padding: 66px 18px 40px; }
+  .aps-main .page-header h1 { font-size: 1.3rem; }
+}
+@media (max-width: 560px) {
+  .aps-main .page { padding: 62px 12px 36px; }
+}
+
+/* --- inherited page toolbar ---------------------------------------------- */
+/* The page action sits on its own row above the content, right-aligned, so a
+   centred heading is not fighting a button in the same line. */
+.aps-main .page-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* --- two-column form modal ---------------------------------------------- */
+/* The user form is account details plus a nine-row access grid. Stacked in a
+   500px column it ran off the bottom of the screen. Side by side, with tight
+   spacing and a pinned action row, it fits in a short browser window without
+   the primary button ever scrolling out of reach. */
+.modal-card.modal-form-2col {
+  max-width: 900px;
+  /* dvh, not vh: vh ignores browser chrome and let the card overhang. */
+  max-height: calc(100dvh - 32px);
+}
+.modal-card.modal-form-2col .modal-header { padding: 16px 22px 12px; }
+.modal-card.modal-form-2col .modal-body { padding: 18px 22px 0; }
+
+.user-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 272px) minmax(0, 1fr);
+  gap: 26px;
+  align-items: start;
+}
+
+/* A heading on each column so it is obvious what is being filled in. */
+.user-form-col-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aps-primary);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--aps-hair);
+}
+
+.user-form-grid .field { margin-bottom: 11px; }
+.user-form-grid .field:last-child { margin-bottom: 0; }
+.user-form-grid .field > small { font-size: 11px; line-height: 1.4; }
+.user-form-grid input,
+.user-form-grid select { padding: 7px 10px; font-size: 13px; }
+
+/* Two groups per row, one line per permission. */
+.user-form-grid .perm-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin-top: 0;
+}
+.user-form-grid .perm-group { gap: 4px; }
+.user-form-grid .perm-row { padding: 5px 8px; }
+.user-form-grid .perm-row-name { font-size: 12px; }
+.user-form-grid .seg-btn { padding: 4px 9px; font-size: 11px; }
+
+/* The action row stays put while the body scrolls, so Add user is always
+   reachable however short the window is. */
+.modal-card.modal-form-2col .modal-actions {
+  position: sticky;
+  bottom: 0;
+  margin-top: 18px;
+  padding: 12px 0 18px;
+  background: #fff;
+  border-top: 1px solid var(--aps-hair);
+}
+
+@media (max-width: 900px) {
+  .user-form-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .user-form-grid .perm-groups { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A quiet "required" marker beats an asterisk nobody can read. */
+.user-form-grid .req {
+  margin-left: 6px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aps-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   Tabbed inherited pages (Human Resources, Asset Control).
+
+   The tab strip was a full-bleed sticky white bar pinned to the top of the old
+   shell. Here it reads as a stray band across the photograph, so it becomes a
+   card of pills sitting inside the page like everything else — and it scrolls
+   sideways rather than wrapping when the window is narrow.
+   --------------------------------------------------------------------------- */
+.aps-main .tab-strip {
+  position: static;
+  margin: 32px 32px 0;
+  padding: 6px;
+  gap: 4px;
+  background: var(--aps-card);
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--aps-card-shadow);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.aps-main .tab-strip::-webkit-scrollbar { display: none; }
+
+.aps-main .tab-strip-btn {
+  flex: none;
+  gap: 7px;
+  padding: 9px 16px;
+  border: none;
+  border-bottom: none;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--aps-muted);
+  white-space: nowrap;
+}
+.aps-main .tab-strip-btn:hover {
+  background: var(--aps-hair);
+  color: var(--aps-heading);
+}
+.aps-main .tab-strip-btn.is-active {
+  background: var(--aps-primary);
+  color: #fff;
+  font-weight: 600;
+  border-bottom-color: transparent;
+}
+.aps-main .tab-strip-icon { font-size: 0.9rem; }
+
+/* The tab strip already supplies the top gap. */
+.aps-main .tab-strip ~ .page { padding-top: 18px; }
+
+/* --- cards that were transparent over the photograph -------------------- */
+/* A dashed "add" tile with a transparent background is unreadable on a
+   photograph — it needs its own surface like every other card. */
+.aps-main .company-card {
+  border-radius: 12px;
+  box-shadow: var(--aps-card-shadow);
+}
+.aps-main .company-card-add {
+  background: rgba(255, 255, 255, 0.94);
+  border-style: dashed;
+  border-color: var(--aps-line);
+  color: var(--aps-muted);
+}
+.aps-main .company-card-add:hover {
+  background: #fff;
+  border-color: var(--aps-primary);
+  color: var(--aps-primary);
+}
+
+@media (max-width: 860px) {
+  .aps-main .tab-strip { margin: 66px 18px 0; }
+  .aps-main .tab-strip ~ .page { padding-top: 14px; }
+  .aps-main .tab-strip-btn { padding: 8px 13px; font-size: 0.78rem; }
+}
+@media (max-width: 560px) {
+  .aps-main .tab-strip { margin: 62px 12px 0; }
+}
+
+/* Secondary buttons were transparent, which reads as washed-out glass when a
+   toolbar sits on the photographic ground rather than inside a card. Giving
+   them a surface costs nothing on a white card and makes them legible here. */
+.aps-main .btn-ghost {
+  background: #fff;
+  box-shadow: var(--aps-card-shadow);
+}
+.aps-main .btn-ghost:hover { background: #f9fafb; }
+.aps-main .btn-ghost.danger { color: var(--aps-bad); border-color: #fecaca; }
+.aps-main .btn-ghost.danger:hover { background: #fef2f2; }
+.aps-main .btn-ghost:disabled { opacity: 0.55; }
+
+/* Toolbars that sit directly on the background need breathing room and should
+   wrap rather than run off the side on a narrow window. */
+.aps-main .page-header-actions,
+.aps-main .page-actions { flex-wrap: wrap; }
+
+/* The Analysis detail view uses its own header wrapper rather than
+   .page-header, so its company name was rendering dark straight onto the
+   photograph and colliding with the back button. */
+.aps-main .hr-analysis-shell { padding: 18px 32px 48px; }
+
+.aps-main .hr-analysis-header {
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.aps-main .hr-analysis-header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* Status lines that sit on the background rather than in a card. */
+.aps-main .hr-analysis-shell > .muted,
+.aps-main .page > .muted {
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.aps-main .hr-analysis-card {
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--aps-card-shadow);
+}
+
+@media (max-width: 860px) {
+  .aps-main .hr-analysis-shell { padding: 14px 18px 40px; }
+}
+@media (max-width: 560px) {
+  .aps-main .hr-analysis-shell { padding: 12px 12px 36px; }
+}
+
+/* --- org chart viewport -------------------------------------------------- */
+/* Taller viewport (the chart is the point of the screen) and controls that
+   never sit under a card. */
+.aps-main .panzoom-viewport {
+  /* Enough canvas to pan a wide chart into, without leaving a dead band under
+     a short one. PanZoom sets an inline height from the fitted chart; the base
+     stylesheet's min-height was overriding it, so it is cleared here. */
+  height: clamp(360px, calc(100vh - 340px), 620px);
+  min-height: 0;
+  border: none;
+  border-radius: 10px;
+}
+
+/* The toolbar above the canvas is one line of guidance. */
+.aps-main .org-toolbar {
+  padding: 0;
+  margin-bottom: 6px;
+  min-height: 0;
+}
+.aps-main .org-chart { padding: 14px 14px 16px; }
+.aps-main .panzoom-controls {
+  background: #fff;
+  border: 1px solid var(--aps-line);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.aps-main .panzoom-controls button.panzoom-actual {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* The tip line was a full-width band above the chart; it belongs with it. */
+.aps-main .org-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--aps-muted);
+  margin-bottom: 10px;
+}
+
+@media (max-width: 860px) {
+  .aps-main .panzoom-viewport { height: clamp(300px, calc(100vh - 280px), 520px); min-height: 0; }
+}
+
+/* ---------------------------------------------------------------------------
+   Confirm / alert dialog (replaces window.confirm and window.alert)
+   --------------------------------------------------------------------------- */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(11, 22, 33, 0.55);
+  backdrop-filter: blur(3px);
+  animation: confirm-fade 120ms ease-out;
+}
+
+.confirm-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 26px 26px 20px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+  animation: confirm-pop 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.confirm-icon {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  background: var(--aps-primary-tint);
+  color: var(--aps-primary);
+}
+.confirm-icon.is-danger { background: var(--aps-bad-bg); color: var(--aps-bad); }
+.confirm-icon.is-info { background: var(--aps-primary-tint); color: var(--aps-primary); }
+
+.confirm-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--aps-heading);
+  line-height: 1.4;
+}
+.confirm-body {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--aps-muted);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+.confirm-actions .aps-btn { min-width: 104px; }
+
+/* A destructive confirm needs a solid red action, not an outlined one. */
+.aps-btn--danger-solid {
+  background: var(--aps-bad);
+  color: #fff;
+  border-color: var(--aps-bad);
+}
+.aps-btn--danger-solid:hover { background: #b91c1c; border-color: #b91c1c; }
+
+@keyframes confirm-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes confirm-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 560px) {
+  .confirm-card { padding: 22px 18px 18px; }
+  .confirm-actions { flex-direction: column-reverse; }
+  .confirm-actions .aps-btn { width: 100%; }
+}
+
+/* --- KPI sessions modal -------------------------------------------------- */
+/* The add form used to be five stacked fields pushing the existing session
+   list off the bottom of the screen. Two columns keeps it short enough that
+   the form and the history are visible together. */
+.modal-card.modal-kpi-sessions { max-width: 720px; }
+
+.aps-main ~ * .kpi-add-form,
+.kpi-add-form {
+  border: 1px solid var(--aps-line);
+  border-radius: 10px;
+  padding: 14px 16px 12px;
+  background: #fbfcfd;
+  margin-bottom: 14px;
+}
+.kpi-add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+}
+.kpi-add-grid .field { margin-bottom: 10px; }
+/* Notes take the full width — it is the only free-text field. */
+.kpi-add-grid .field:last-child { grid-column: 1 / -1; }
+.kpi-add-grid textarea { min-height: 62px; }
+
+.kpi-modal-toolbar { margin-bottom: 12px; }
+
+@media (max-width: 620px) {
+  .kpi-add-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- company detail header ---------------------------------------------- */
+/* A company header carries a logo, a name, a line of detail and four actions.
+   Stacked and centred that came to 125px before the content started, so it
+   goes back to one row: identity left, actions right. Plain page headings
+   stay centred. */
+.aps-main .page-header:has(.company-detail-head) {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.aps-main .page-header:has(.company-detail-head) > div { text-align: left; }
+.aps-main .page-header:has(.company-detail-head) .page-actions,
+.aps-main .page-header:has(.company-detail-head) .page-header-actions {
+  justify-content: flex-end;
+}
+.aps-main .page-header:has(.company-detail-head) h1 { font-size: 1.3rem; }
+.aps-main .page-header:has(.company-detail-head) > div > p { margin-left: 0; }
+
+/* The logo does not need to be 72px to identify a company. */
+.aps-main .company-logo-lg {
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 10px;
+}
+
+/* "← All companies" belongs on the same line as the header, not above it. */
+.aps-main .back-btn { margin-bottom: 12px; }
+
+@media (max-width: 900px) {
+  .aps-main .page-header:has(.company-detail-head) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .aps-main .page-header:has(.company-detail-head) .page-actions { justify-content: flex-start; }
+}
+
+/* The tip is guidance, not a banner — it does not need its own full row. */
+.aps-main .org-hint {
+  margin: 0 0 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 0.72rem;
+}
