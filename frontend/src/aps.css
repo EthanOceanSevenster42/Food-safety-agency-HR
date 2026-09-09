@@ -72,9 +72,10 @@
   transition: width 0.25s ease, min-width 0.25s ease;
   z-index: 20;
 }
-/* 216px is the width at which "Competence & registrations" fits on one line
-   next to its icon and count badge. */
-.aps-side--open { width: 216px; min-width: 216px; }
+/* 240px is the width at which "Competence & registrations" fits on one line
+   next to its icon and count badge. It grew from 216px when the nav wording
+   went up to 0.74rem — the longest label is what sets this number. */
+.aps-side--open { width: 240px; min-width: 240px; }
 .aps-side--collapsed { width: 64px; min-width: 64px; }
 
 .aps-brand {
@@ -136,7 +137,7 @@
   justify-content: space-between;
   gap: 6px;
   width: 100%;
-  font-size: 0.55rem;
+  font-size: 0.62rem;
   font-weight: 700;
   color: var(--aps-side-group);
   text-transform: uppercase;
@@ -158,7 +159,7 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
   gap: 9px;
   padding: 6px 10px;
   border-radius: 4px;
-  font-size: 0.62rem;
+  font-size: 0.74rem;
   font-weight: 400;
   color: var(--aps-side-item);
   text-decoration: none;
@@ -173,7 +174,7 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
   font-weight: 600;
   border-left-color: var(--aps-accent);
 }
-.aps-nav-link i { width: 15px; text-align: center; font-size: 0.74rem; flex: none; }
+.aps-nav-link i { width: 16px; text-align: center; font-size: 0.82rem; flex: none; }
 /* Labels stay on one line; the ellipsis is a safety net for a longer label
    added later, and the anchor carries a title so nothing is lost. */
 .aps-nav-label {
@@ -198,7 +199,7 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
   color: #fff;
   border-radius: 10px;
   padding: 1px 6px;
-  font-size: 0.55rem;
+  font-size: 0.6rem;
   font-weight: 700;
   line-height: 1.5;
 }
@@ -249,7 +250,7 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
   }
   /* On a phone the rail is always full width when open — a 64px rail plus a
      drawer is two ways to do the same thing. */
-  .aps-side, .aps-side--collapsed { width: 216px; min-width: 216px; }
+  .aps-side, .aps-side--collapsed { width: 240px; min-width: 240px; }
   .aps-side--mobile-open { transform: translateX(0); }
   .aps-side--collapsed .aps-nav-link {
     justify-content: flex-start; gap: 9px; padding: 6px 10px;
@@ -1029,6 +1030,12 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
   text-align: left;
   gap: 16px;
   margin-bottom: 14px;
+  /* The stacking rule below is keyed to the viewport, but the space the header
+     actually gets is the viewport minus the sidebar — so four actions ran off
+     the right between roughly 900 and 1100px. Wrapping is measured against the
+     real width, so the actions drop to their own line exactly when they stop
+     fitting, whatever the rail is doing. */
+  flex-wrap: wrap;
 }
 .aps-main .page-header:has(.company-detail-head) > div { text-align: left; }
 .aps-main .page-header:has(.company-detail-head) .page-actions,
@@ -1319,3 +1326,102 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
   font-size: 13px;
 }
 .new-person-block > small { display: block; margin-top: 2px; line-height: 1.45; }
+
+/* --- sign-in -------------------------------------------------------------
+   The app sits on the FSA photograph; signing in used to happen on a pale
+   grey gradient, so the first screen looked like a different product from the
+   one behind it. Same ground, same wash, with the card lifted off it. */
+.login-shell {
+  background:
+    linear-gradient(rgba(11, 22, 33, 0.66), rgba(11, 22, 33, 0.52)),
+    url('/background.jpg') no-repeat center center fixed;
+  background-size: cover, cover;
+  font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.login-card {
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(17, 24, 39, 0.05);
+  padding: 30px 30px 24px;
+  /* The teal edge the cards inside the app carry. */
+  border-top: 3px solid var(--aps-primary);
+}
+
+.login-eyebrow {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--aps-primary);
+  text-align: center;
+  margin-bottom: 3px;
+}
+
+.login-shell .login-title { font-size: 1.22rem; letter-spacing: -0.02em; }
+.login-shell .login-subtitle { margin-bottom: 18px; }
+
+/* A password field with a reveal button inside its right edge. */
+.login-password { position: relative; }
+.login-password input { padding-right: 42px; width: 100%; box-sizing: border-box; }
+.login-reveal {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--aps-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+.login-reveal:hover { color: var(--aps-primary); background: #f2fbfc; }
+.login-reveal:focus-visible { outline: 2px solid var(--aps-primary); outline-offset: 1px; }
+
+/* Why you are here, and what went wrong — distinct treatments, both readable. */
+.login-note,
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-bottom: 14px;
+}
+.login-note {
+  background: #f2fbfc;
+  border: 1px solid rgba(0, 120, 144, 0.25);
+  color: var(--aps-heading);
+}
+.login-note i { color: var(--aps-primary); margin-top: 2px; }
+.login-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+.login-error i { color: #dc2626; margin-top: 2px; }
+
+.login-help {
+  margin: 14px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--aps-muted);
+  text-align: center;
+}
+
+/* The real logo is an emblem, not a wide wordmark: .login-logo stretched it to
+   260px because that rule was written for the placeholder SVG. Sized as the
+   APS sign-in does it — 70px tall, width auto. */
+.login-shell .login-logo {
+  width: auto;
+  max-width: 100%;
+  height: 70px;
+  margin: 0 auto 16px;
+  object-fit: contain;
+}

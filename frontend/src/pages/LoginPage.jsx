@@ -9,6 +9,7 @@ export default function LoginPage() {
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -29,14 +30,34 @@ export default function LoginPage() {
     }
   }
 
+  // Where the user was sent back to sign in from, so the message says why they
+  // are looking at this page rather than the one they asked for.
+  const cameFrom = location.state?.from?.pathname;
+
   return (
     <div className="login-shell">
       <form className="login-card" onSubmit={handleSubmit}>
-        <img className="login-logo" src="/fsa-logo.svg" alt="Food Safety Agency" />
-        <h1 className="login-title">People &amp; management hub</h1>
-        <p className="login-subtitle">Sign in with your work email</p>
+        {/* The real FSA logo, the same public/logo.png the APS system signs in
+            with — not the placeholder SVG that was here. */}
+        <img className="login-logo" src="/logo.png" alt="Food Safety Agency" />
 
-        {error && <div className="error" role="alert">{error}</div>}
+        <div className="login-eyebrow">Food Safety Agency</div>
+        <h1 className="login-title">People &amp; management hub</h1>
+        <p className="login-subtitle">Sign in with your work email address.</p>
+
+        {cameFrom && !error && (
+          <div className="login-note">
+            <i className="fas fa-circle-info" aria-hidden="true" />
+            <span>Sign in to continue to <strong>{cameFrom}</strong>.</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="login-error" role="alert">
+            <i className="fas fa-circle-exclamation" aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor="email">Email</label>
@@ -45,28 +66,52 @@ export default function LoginPage() {
             type="email"
             autoComplete="username"
             required
+            /* eslint-disable-next-line jsx-a11y/no-autofocus */
+            autoFocus
+            spellCheck="false"
+            autoCapitalize="none"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@foodsafetyagency.co.za"
+            placeholder="you@fsa-pty.co.za"
           />
         </div>
 
         <div className="field">
           <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Your password"
-          />
+          {/* A reveal toggle rather than a bare password box: this is typed on
+              handsets in the field, where a mistyped password you cannot see is
+              the usual reason for a failed sign-in. */}
+          <div className="login-password">
+            <input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
+            />
+            <button
+              type="button"
+              className="login-reveal"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-pressed={showPassword}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <i className={showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'} aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
         <button className="btn-primary" type="submit" disabled={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
+
+        <p className="login-help">
+          No account, or locked out? Ask your HR administrator to add you on
+          Users &amp; access.
+        </p>
 
         <div className="login-footer">Food Safety Agency · Internal use only</div>
       </form>
