@@ -249,6 +249,11 @@ CREATE TABLE IF NOT EXISTS FsaStats (
     Value     VARCHAR(20)  NOT NULL,
     Label     VARCHAR(100) NOT NULL,
     Note      VARCHAR(255) NULL,
+    -- Name of a figure the API counts off the registers at request time. When
+    -- set, Value is only the fallback for a metric that returns nothing. Left
+    -- NULL for the figures nothing in this schema can answer (Academy hours,
+    -- turnover, cost to fill), which stay as entered numbers.
+    Derived   VARCHAR(40)  NULL,
     SortOrder INT          NOT NULL DEFAULT 0
 );
 
@@ -281,6 +286,10 @@ ALTER TABLE FsaLeaveRequests ADD COLUMN IF NOT EXISTS BalanceDays  NUMERIC(5,1) 
 -- reading a paragraph per row — the paragraph stays in Impact for the detail.
 ALTER TABLE FsaLeaveRequests ADD COLUMN IF NOT EXISTS CoverageKind VARCHAR(10)  NULL;
 ALTER TABLE FsaLeaveRequests ADD COLUMN IF NOT EXISTS SubmittedAt  TIMESTAMP(6) NULL;
+
+-- Stat tiles used to be stored numbers only, so a headline could sit above a
+-- register that disagreed with it. Derived names the metric to count instead.
+ALTER TABLE FsaStats ADD COLUMN IF NOT EXISTS Derived VARCHAR(40) NULL;
 
 CREATE INDEX IF NOT EXISTS IX_FsaLeave_Status       ON FsaLeaveRequests (Status);
 CREATE INDEX IF NOT EXISTS IX_FsaLeave_Site         ON FsaLeaveRequests (Site);

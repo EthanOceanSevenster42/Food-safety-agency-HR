@@ -325,37 +325,45 @@ export const WATCH = [
 ];
 
 // Headline figures, per screen.
+// [value, label, note, derived]
+//
+// `derived` names a metric the API counts off the registers on every request
+// (see METRICS in src/routes/fsa-hr.js), so a tile cannot drift from the table
+// it sits above. `value` is then only the fallback if that metric returns
+// nothing. The four rows with a null key are figures nothing in this schema can
+// answer — Academy hours, median days to green, turnover and cost to fill have
+// no table behind them — so they stay as entered numbers until they do.
 export const STATS = {
   home: [
-    ['214', 'Employees on register', null],
-    ['38', 'Sites with placements', null],
-    ['3', 'Leave requests pending', null],
-    ['2', 'Registrations expiring', null],
+    ['214', 'Employees on register', null, 'staff.headcount'],
+    ['38', 'Sites with placements', null, 'staff.sites'],
+    ['3', 'Leave requests pending', null, 'leave.pending'],
+    ['2', 'Registrations expiring', null, 'competence.expiringPeople'],
   ],
   dash: [
-    ['214', 'Headcount', '+6 against 1 March 2026'],
-    ['96.4%', 'Placement coverage', 'Target 98% · Rustenburg short'],
-    ['98.1%', 'Registration compliance', 'One placement suspended'],
-    ['7.3%', 'Annual turnover', 'Down from 9.1% last year'],
-    ['R 96k', 'Cost to fill two posts', 'Against R 214 800 relief spend'],
+    ['214', 'Headcount', '+6 against 1 March 2026', 'staff.headcount'],
+    ['96.4%', 'Placement coverage', 'Target 98% · Rustenburg short', 'coverage.pct'],
+    ['98.1%', 'Registration compliance', 'One placement suspended', 'competence.validPct'],
+    ['7.3%', 'Annual turnover', 'Down from 9.1% last year', null],
+    ['R 96k', 'Cost to fill two posts', 'Against R 214 800 relief spend', null],
   ],
   competence: [
-    ['98.1%', 'Registrations valid', null],
-    ['2', 'Expiring within 60 days', null],
-    ['1', 'Expired — placement blocked', null],
-    ['1 480', 'Academy hours delivered', null],
+    ['98.1%', 'Registrations valid', null, 'competence.validPct'],
+    ['2', 'Expiring within 60 days', null, 'competence.expiringPeople'],
+    ['1', 'Expired — placement blocked', null, 'competence.blocked'],
+    ['1 480', 'Academy hours delivered', null, null],
   ],
   r2g: [
-    ['7', 'In the programme', null],
-    ['2', 'Behind or at risk', null],
-    ['1', 'Awaiting green sign-off', null],
-    ['91', 'Median days to green', null],
+    ['7', 'In the programme', null, 'r2g.total'],
+    ['2', 'Behind or at risk', null, 'r2g.atRisk'],
+    ['1', 'Awaiting green sign-off', null, 'r2g.awaitingSignOff'],
+    ['91', 'Median days to green', null, null],
   ],
   docs: [
-    ['142', 'Controlled documents', null],
-    ['2', 'Review due within 30 days', null],
-    ['1', 'Past review date', null],
-    ['96%', 'Acknowledgements received', null],
+    ['142', 'Controlled documents', null, 'docs.total'],
+    ['2', 'Review due within 30 days', null, 'docs.reviewDue'],
+    ['1', 'Past review date', null, 'docs.overdue'],
+    ['96%', 'Acknowledgements received', null, 'docs.ackPct'],
   ],
 };
 

@@ -425,15 +425,16 @@ await seed('FsaWatchItems', async () => {
 await seed('FsaStats', async () => {
   for (const [screen, rows] of Object.entries(C.STATS)) {
     for (let i = 0; i < rows.length; i++) {
-      const [value, label, note] = rows[i];
+      const [value, label, note, derived] = rows[i];
       await req()
         .input('screen', sql.NVarChar(30), screen)
         .input('value', sql.NVarChar(20), value)
         .input('label', sql.NVarChar(100), label)
         .input('note', sql.NVarChar(255), note)
+        .input('derived', sql.NVarChar(40), derived ?? null)
         .input('sort', sql.Int, i)
-        .query(`INSERT INTO dbo.FsaStats (Screen, Value, Label, Note, SortOrder)
-                VALUES (@screen, @value, @label, @note, @sort)`);
+        .query(`INSERT INTO dbo.FsaStats (Screen, Value, Label, Note, Derived, SortOrder)
+                VALUES (@screen, @value, @label, @note, @derived, @sort)`);
     }
   }
 });

@@ -8,15 +8,11 @@ import { Badge, Card, PageHead, Spinner, ErrorNote, Table, useFsa } from './Ui.j
 // schedule, EDP). Packs are role-templated; the EDP is derived from the KPA
 // ratings rather than typed, so areas rated below "Meets" produce the goals.
 
-const DOC_KIND = { complete: 'ok', draft: 'warn', outstanding: 'bad' };
-const DOC_LABEL = { complete: 'Complete', draft: 'Draft', outstanding: 'Outstanding' };
-
-const STAGES = [
-  { code: 'objectives', label: 'Objectives set' },
-  { code: 'midyear', label: 'Mid-year' },
-  { code: 'yearend', label: 'Year-end' },
-  { code: 'closed', label: 'Closed' },
-];
+// The cycle stages and the document states are reference data: both arrive with
+// the payload (FsaLookups → /api/fsa/performance) so renaming a stage is an
+// edit to the lookup table, not to this file. Only the fallbacks for an empty
+// vocabulary live here.
+const byCode = (list, code) => (list || []).find((x) => x.code === code);
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function shortDate(iso) {
@@ -28,11 +24,11 @@ function shortDate(iso) {
 
 // The four-stage cycle, with the current stage marked. Thin bars only — the
 // skewed device is reserved for step markers like this one.
-function StageMarker({ stage }) {
-  const at = Math.max(0, STAGES.findIndex((s) => s.code === stage));
+function StageMarker({ stage, stages }) {
+  const at = Math.max(0, (stages || []).findIndex((s) => s.code === stage));
   return (
     <ol className="perf-steps">
-      {STAGES.map((s, i) => (
+      {(stages || []).map((s, i) => (
         <li
           key={s.code}
           className={
@@ -113,13 +109,15 @@ function Overview() {
                 <div className="aps-meta">{p.Service}</div>
               </td>
               <td>
-                <Badge kind={p.Stage === 'closed' ? 'ok' : p.Stage === 'objectives' ? 'info' : 'warn'}>
-                  {STAGES.find((s) => s.code === p.Stage)?.label || p.Stage}
+                <Badge kind={byCode(data.stages, p.Stage)?.kind || 'na'}>
+                  {byCode(data.stages, p.Stage)?.label || p.Stage}
                 </Badge>
               </td>
               {['JdState', 'KpiState', 'EdpState'].map((k) => (
                 <td key={k}>
-                  <Badge kind={DOC_KIND[p[k]] || 'na'}>{DOC_LABEL[p[k]] || p[k]}</Badge>
+                  <Badge kind={byCode(data.docStates, p[k])?.kind || 'na'}>
+                    {byCode(data.docStates, p[k])?.label || p[k]}
+                  </Badge>
                 </td>
               ))}
               <td>
@@ -200,7 +198,7 @@ function Pack({ staffNo }) {
               disabled={busy === 'stage'}
               onChange={(e) => setStage(e.target.value)}
             >
-              {STAGES.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
+              {(data.stages || []).map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
             </select>
             <button className="aps-btn aps-btn--ghost" onClick={() => navigate('/performance')}>
               <i className="fas fa-arrow-left" /> All packs
@@ -212,7 +210,7 @@ function Pack({ staffNo }) {
       {msg && <div className="aps-alert aps-alert--bad" style={{ marginBottom: 12 }}>{msg}</div>}
 
       <Card>
-        <StageMarker stage={p.Stage} />
+        <StageMarker stage={p.Stage} stages={data.stages} />
       </Card>
 
       <div className="aps-stats" style={{ marginTop: 16 }}>

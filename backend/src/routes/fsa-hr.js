@@ -45,6 +45,15 @@ async function labelsByCode(pool, domain) {
   return out;
 }
 
+// A lookup domain in the shape the screens consume it. Sending the vocabulary
+// with the data is what lets a component render a stage or a document state
+// without keeping its own copy of the list.
+async function vocab(pool, domain) {
+  return ((await lookups(pool)).get(domain) || []).map((x) => ({
+    code: x.Code, label: x.Label, kind: x.Kind,
+  }));
+}
+
 async function settings(pool) {
   const r = await pool.request().query('SELECT SettingKey, Value FROM dbo.FsaSettings');
   return Object.fromEntries(r.recordset.map((x) => [x.SettingKey, x.Value]));
@@ -52,13 +61,96 @@ async function settings(pool) {
 
 const asBool = (v) => v === true || v === 1 || v === '1' || v === 'true';
 
-async function statsFor(pool, screen) {
+// --- stat tiles -----------------------------------------------------------
+// A tile used to be a stored number, so "214 employees on register" could sit
+// above a register holding nine people and nothing would notice. Every figure
+// the registers can answer is now counted at request time; FsaStats.Derived
+// names which one, and the stored Value is only the fallback.
+//
+// A percentage is rounded to one decimal and carries its own sign so the tile
+// component keeps rendering a plain string.
+const pct = (n) => (n === null ? null : `${Math.round(Number(n) * 10) / 10}%`);
+const int = (n) => (n === null ? null : String(Number(n)));
+
+const METRICS = {
+  'staff.headcount': (m) => int(m.StaffHeadcount),
+  'staff.sites': (m) => int(m.StaffSites),
+  'leave.pending': (m) => int(m.LeavePending),
+  // Counted per person, not per cell: someone whose DALRRD and classification
+  // both lapse on the same date is one registration problem to chase, and the
+  // alert beside this tile names people.
+  'competence.expiringPeople': (m) => int(m.CompetenceExpiringPeople),
+  // A lapsed DALRRD registration is what suspends a placement. An overdue
+  // medical is chased separately and does not block, so it is not counted here.
+  'competence.blocked': (m) => int(m.CompetenceBlocked),
+  // Share of the registrations that actually apply — "not required" cells are
+  // left out of both halves rather than counted as valid.
+  'competence.validPct': (m) =>
+    (Number(m.CompetenceApplicableCells) > 0
+      ? pct((Number(m.CompetenceOkCells) * 100) / Number(m.CompetenceApplicableCells))
+      : null),
+  'coverage.pct': (m) => pct(m.CoveragePct),
+  'r2g.total': (m) => int(m.R2gTotal),
+  'r2g.atRisk': (m) => int(m.R2gAtRisk),
+  'r2g.awaitingSignOff': (m) => int(m.R2gAwaitingSignOff),
+  'docs.total': (m) => int(m.DocsTotal),
+  'docs.reviewDue': (m) => int(m.DocsReviewDue),
+  'docs.overdue': (m) => int(m.DocsOverdue),
+  'docs.ackPct': (m) => pct(m.DocsAckPct),
+};
+
+// One round trip for every tile on every screen. The competence percentage
+// needs the five registration columns as rows, hence the UNION ALL.
+const COMPETENCE_CELLS = `
+  SELECT DalrrdKind AS Kind FROM dbo.FsaCompetence
+  UNION ALL SELECT AntePostKind FROM dbo.FsaCompetence
+  UNION ALL SELECT ClassificationKind FROM dbo.FsaCompetence
+  UNION ALL SELECT HaccpKind FROM dbo.FsaCompetence
+  UNION ALL SELECT MedicalKind FROM dbo.FsaCompetence`;
+
+async function metrics(pool) {
+  const r = await pool.request().query(`
+    SELECT
+      (SELECT COUNT(*) FROM dbo.FsaStaff) AS StaffHeadcount,
+      (SELECT COUNT(DISTINCT Site) FROM dbo.FsaStaff) AS StaffSites,
+      (SELECT COUNT(*) FROM dbo.FsaLeaveRequests WHERE Status = 'pending') AS LeavePending,
+      (SELECT COUNT(*) FROM dbo.FsaCompetence
+        WHERE 'warn' IN (DalrrdKind, AntePostKind, ClassificationKind,
+                         HaccpKind, MedicalKind)) AS CompetenceExpiringPeople,
+      (SELECT COUNT(*) FROM dbo.FsaCompetence WHERE DalrrdKind = 'bad') AS CompetenceBlocked,
+      (SELECT COUNT(*) FROM (${COMPETENCE_CELLS}) okc
+        WHERE Kind = 'ok') AS CompetenceOkCells,
+      (SELECT COUNT(*) FROM (${COMPETENCE_CELLS}) appc
+        WHERE Kind <> 'na') AS CompetenceApplicableCells,
+      (SELECT AVG(Pct) FROM dbo.FsaSiteCoverage) AS CoveragePct,
+      (SELECT COUNT(*) FROM dbo.FsaProgrammes) AS R2gTotal,
+      (SELECT COUNT(*) FROM dbo.FsaProgrammes WHERE StatusKind = 'bad') AS R2gAtRisk,
+      (SELECT COUNT(*) FROM dbo.FsaProgrammes
+        WHERE LOWER(Status) LIKE '%sign-off%') AS R2gAwaitingSignOff,
+      (SELECT COUNT(*) FROM dbo.FsaDocuments) AS DocsTotal,
+      (SELECT COUNT(*) FROM dbo.FsaDocuments WHERE StatusKind = 'warn') AS DocsReviewDue,
+      (SELECT COUNT(*) FROM dbo.FsaDocuments WHERE StatusKind = 'bad') AS DocsOverdue,
+      (SELECT AVG(Pct) FROM dbo.FsaAcknowledgements) AS DocsAckPct
+  `);
+  return r.recordset[0];
+}
+
+async function statsFor(pool, screen, live) {
   const r = await pool
     .request()
     .input('screen', sql.NVarChar(30), screen)
-    .query(`SELECT Value, Label, Note FROM dbo.FsaStats
+    .query(`SELECT Value, Label, Note, Derived FROM dbo.FsaStats
             WHERE Screen = @screen ORDER BY SortOrder`);
-  return r.recordset;
+
+  const m = live || (await metrics(pool));
+  return r.recordset.map((row) => {
+    const fn = row.Derived ? METRICS[row.Derived] : null;
+    const value = fn ? fn(m) : null;
+    // Fall back to the stored number if the metric is unknown or came back
+    // empty, so a tile never renders blank.
+    const { Derived, ...tile } = row;
+    return value === null ? tile : { ...tile, Value: value };
+  });
 }
 
 function wrap(handler) {
@@ -74,15 +166,15 @@ function wrap(handler) {
 // --- HR home --------------------------------------------------------------
 router.get('/home', wrap(async (_req, res) => {
   const pool = await getPool();
-  const [stats, alerts, notices, week, leave] = await Promise.all([
-    statsFor(pool, 'home'),
+  const live = await metrics(pool);
+  const [stats, alerts, notices, week] = await Promise.all([
+    statsFor(pool, 'home', live),
     pool.request().query(`SELECT Kind, Title, Body, Action, Ref, Route FROM dbo.FsaAlerts ORDER BY SortOrder`),
     pool.request().query(`SELECT NoticeDate, Title, Body FROM dbo.FsaNotices ORDER BY SortOrder`),
     pool.request().query(`SELECT DayLabel, Body FROM dbo.FsaWeekItems ORDER BY SortOrder`),
-    pool.request().query(`SELECT COUNT(*) AS RowTally FROM dbo.FsaLeaveRequests WHERE Status = 'pending'`),
   ]);
 
-  const pending = Number(leave.recordset[0].RowTally);
+  const pending = Number(live.LeavePending);
 
   const [quick, kinds, cfg] = await Promise.all([
     pool.request().query(`SELECT Route, Icon, Title, Sub, CountKey, CountOne, CountMany, CountZero
@@ -94,12 +186,10 @@ router.get('/home', wrap(async (_req, res) => {
   // Live figures a quick action's subtitle can be built from.
   const counts = { pending };
 
-  const expiring = Number(
-    (stats.find((x) => /expiring/i.test(x.Label)) || {}).Value || 0
-  ) || 0;
+  const expiring = Number(live.CompetenceExpiringPeople) || 0;
 
   res.json({
-    stats: stats.map((s) => (s.Label === 'Leave requests pending' ? { ...s, Value: String(pending) } : s)),
+    stats,
     alerts: alerts.recordset,
     notices: notices.recordset,
     week: week.recordset,
@@ -1237,12 +1327,8 @@ router.get('/performance', wrap(async (_req, res) => {
 
   res.json({
     rows,
-    stages: (await lookups(pool)).get('perf_stage')?.map((x) => ({
-      code: x.Code, label: x.Label, kind: x.Kind,
-    })) || [],
-    docStates: (await lookups(pool)).get('perf_doc_state')?.map((x) => ({
-      code: x.Code, label: x.Label, kind: x.Kind,
-    })) || [],
+    stages: await vocab(pool, 'perf_stage'),
+    docStates: await vocab(pool, 'perf_doc_state'),
     // Pack completeness is derived, never stored (§6).
     summary: {
       total: rows.length,
@@ -1298,6 +1384,10 @@ router.get('/performance/:staffNo', wrap(async (req, res) => {
     kras: kras.recordset,
     measures: measures.recordset,
     goals: goals.recordset,
+    // The same vocabularies the list sends, so the detail view labels a stage
+    // from the reference data too rather than from a copy in the component.
+    stages: await vocab(pool, 'perf_stage'),
+    docStates: await vocab(pool, 'perf_doc_state'),
     ratingMeets: PERF_MEETS,
     ratingLabels: Object.fromEntries(
       ((await lookups(pool)).get('perf_rating') || []).map((x) => [x.Code, x.Label])
