@@ -45,6 +45,9 @@ const req = () => pool.request();
 await seed('FsaStaff', async () => {
   for (let i = 0; i < C.STAFF.length; i++) {
     const [no, name, role, service, site, reg, kind, contract] = C.STAFF[i];
+    // The expiry is embedded in the display text ("Valid to 2027-04-30"), so
+    // lift it into its own column instead of re-parsing it on every render.
+    const expiry = (reg.match(/\d{4}-\d{2}-\d{2}/) || [null])[0];
     await req()
       .input('no', sql.NVarChar(20), no)
       .input('name', sql.NVarChar(255), name)
@@ -54,10 +57,11 @@ await seed('FsaStaff', async () => {
       .input('reg', sql.NVarChar(100), reg)
       .input('kind', sql.NVarChar(10), kind)
       .input('contract', sql.NVarChar(50), contract)
+      .input('expiry', sql.Date, expiry)
       .input('sort', sql.Int, i)
       .query(`INSERT INTO dbo.FsaStaff
-                (StaffNo, Name, Role, Service, Site, Registration, RegKind, Contract, SortOrder)
-              VALUES (@no, @name, @role, @service, @site, @reg, @kind, @contract, @sort)`);
+                (StaffNo, Name, Role, Service, Site, Registration, RegKind, Contract, RegExpiry, SortOrder)
+              VALUES (@no, @name, @role, @service, @site, @reg, @kind, @contract, @expiry, @sort)`);
   }
 });
 
@@ -350,16 +354,17 @@ await seed('FsaAcknowledgements', async () => {
 // --- HR home --------------------------------------------------------------
 await seed('FsaAlerts', async () => {
   for (let i = 0; i < C.ALERTS.length; i++) {
-    const [kind, title, body, action, ref] = C.ALERTS[i];
+    const [kind, title, body, action, ref, route] = C.ALERTS[i];
     await req()
       .input('kind', sql.NVarChar(30), kind)
       .input('title', sql.NVarChar(255), title)
       .input('body', sql.NVarChar(sql.MAX), body)
       .input('action', sql.NVarChar(255), action)
       .input('ref', sql.NVarChar(50), ref)
+      .input('route', sql.NVarChar(120), route ?? null)
       .input('sort', sql.Int, i)
-      .query(`INSERT INTO dbo.FsaAlerts (Kind, Title, Body, Action, Ref, SortOrder)
-              VALUES (@kind, @title, @body, @action, @ref, @sort)`);
+      .query(`INSERT INTO dbo.FsaAlerts (Kind, Title, Body, Action, Ref, Route, SortOrder)
+              VALUES (@kind, @title, @body, @action, @ref, @route, @sort)`);
   }
 });
 
@@ -430,6 +435,74 @@ await seed('FsaStats', async () => {
         .query(`INSERT INTO dbo.FsaStats (Screen, Value, Label, Note, SortOrder)
                 VALUES (@screen, @value, @label, @note, @sort)`);
     }
+  }
+});
+
+// --- reference layer ------------------------------------------------------
+// These replace constants that used to live in route files and components.
+await seed('FsaSettings', async () => {
+  for (const [key, value, note] of C.SETTINGS) {
+    await req()
+      .input('k', sql.NVarChar(60), key)
+      .input('v', sql.NVarChar(sql.MAX), value)
+      .input('n', sql.NVarChar(255), note ?? null)
+      .query(`INSERT INTO dbo.FsaSettings (SettingKey, Value, Note)
+              VALUES (@k, @v, @n)`);
+  }
+});
+
+await seed('FsaLookups', async () => {
+  for (const [domain, code, label, kind, detail, route, sort] of C.LOOKUPS) {
+    await req()
+      .input('d', sql.NVarChar(40), domain)
+      .input('c', sql.NVarChar(60), code)
+      .input('l', sql.NVarChar(160), label)
+      .input('k', sql.NVarChar(10), kind ?? null)
+      .input('t', sql.NVarChar(400), detail ?? null)
+      .input('r', sql.NVarChar(120), route ?? null)
+      .input('s', sql.Int, sort)
+      .query(`INSERT INTO dbo.FsaLookups (Domain, Code, Label, Kind, Detail, Route, SortOrder)
+              VALUES (@d, @c, @l, @k, @t, @r, @s)`);
+  }
+});
+
+await seed('FsaQuickActions', async () => {
+  for (const [route, icon, title, sub, countKey, one, many, zero, sort] of C.QUICK_ACTIONS) {
+    await req()
+      .input('r', sql.NVarChar(120), route)
+      .input('i', sql.NVarChar(60), icon)
+      .input('t', sql.NVarChar(80), title)
+      .input('u', sql.NVarChar(160), sub)
+      .input('ck', sql.NVarChar(40), countKey ?? null)
+      .input('c1', sql.NVarChar(80), one ?? null)
+      .input('cn', sql.NVarChar(80), many ?? null)
+      .input('c0', sql.NVarChar(80), zero ?? null)
+      .input('s', sql.Int, sort)
+      .query(`INSERT INTO dbo.FsaQuickActions
+                (Route, Icon, Title, Sub, CountKey, CountOne, CountMany, CountZero, SortOrder)
+              VALUES (@r, @i, @t, @u, @ck, @c1, @cn, @c0, @s)`);
+  }
+});
+
+await seed('FsaDecisions', async () => {
+  for (const d of C.DECISIONS) {
+    const [screen, title, body, detail, aLabel, aValue, aBasis, fLabel, fValue, fBasis, sort] = d;
+    await req()
+      .input('sc', sql.NVarChar(30), screen)
+      .input('t', sql.NVarChar(120), title)
+      .input('b', sql.NVarChar(sql.MAX), body)
+      .input('dt', sql.NVarChar(sql.MAX), detail ?? null)
+      .input('al', sql.NVarChar(80), aLabel ?? null)
+      .input('av', sql.NVarChar(40), aValue ?? null)
+      .input('ab', sql.NVarChar(200), aBasis ?? null)
+      .input('fl', sql.NVarChar(80), fLabel ?? null)
+      .input('fv', sql.NVarChar(40), fValue ?? null)
+      .input('fb', sql.NVarChar(200), fBasis ?? null)
+      .input('s', sql.Int, sort)
+      .query(`INSERT INTO dbo.FsaDecisions
+                (Screen, Title, Body, Detail, AgainstLabel, AgainstValue, AgainstBasis,
+                 ForLabel, ForValue, ForBasis, SortOrder)
+              VALUES (@sc, @t, @b, @dt, @al, @av, @ab, @fl, @fv, @fb, @s)`);
   }
 });
 

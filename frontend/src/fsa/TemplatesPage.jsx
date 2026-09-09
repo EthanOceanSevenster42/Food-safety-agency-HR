@@ -105,8 +105,8 @@ export default function TemplatesPage() {
       {error && <ErrorNote error={error} onRetry={reload} />}
 
       {data && !loading && (
-        <div className="aps-two-col">
-          <div className="aps-stack">
+        <>
+          <div className="templates-lede">
             {/* One plain sentence in place of four counts scattered per phase. */}
             <Card title={`${dept} — what this department adds`}>
               <p className="aps-note" style={{ margin: 0 }}>
@@ -125,7 +125,12 @@ export default function TemplatesPage() {
                 </p>
               )}
             </Card>
+          </div>
 
+          {/* The four phases run across the page. Each holds one or two
+              department activities, so side by side they are comparable and
+              the page is one screen instead of two. */}
+          <div className="templates-phases">
             {data.phases.map((ph) => {
               const lockedOpen = !!showLocked[ph.phase];
               return (
@@ -332,8 +337,10 @@ export default function TemplatesPage() {
             })}
           </div>
 
+          {/* Targets sit under the phases: they belong to Phase 3, and they are
+              the one part of the method a department sets for itself. */}
           <TargetsCard dept={dept} targets={data.targets} onChanged={reload} />
-        </div>
+        </>
       )}
     </div>
   );
@@ -472,17 +479,6 @@ function TargetsCard({ dept, targets, onChanged }) {
         )}
       </Card>
 
-      <Card title="When changes take effect">
-        <p className="aps-note" style={{ margin: 0 }}>
-          Edits here apply to <strong>new starters</strong> from the moment you make them. Anyone
-          already part-way through keeps the checklist they started on, so a sign-off never moves to a
-          different activity.
-        </p>
-        <p className="aps-note" style={{ margin: '10px 0 0', color: '#6b7280' }}>
-          The phases, durations, pass marks and sign-off above are set for the whole agency and cannot
-          be changed per department.
-        </p>
-      </Card>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import CompanyGrid from '../components/CompanyGrid.jsx';
 import { SpiderChart } from '../components/charts.jsx';
 import EmployeeAnalysisModal from '../components/EmployeeAnalysisModal.jsx';
+import useAutoSelectCompany from '../useAutoSelectCompany.js';
 
 // Colour band for a 0–100 rating (matches EmployeeAnalysisModal).
 const band = (v) => (v == null ? 'na' : v >= 70 ? 'good' : v <= 40 ? 'bad' : 'mid');
@@ -14,6 +15,8 @@ const band = (v) => (v == null ? 'na' : v >= 70 ? 'good' : v <= 40 ? 'bad' : 'mi
 export default function HrAnalysisPage() {
   const [companies, setCompanies] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  // One company means nothing to choose — go straight in.
+  useAutoSelectCompany(companies, selectedId, setSelectedId);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');

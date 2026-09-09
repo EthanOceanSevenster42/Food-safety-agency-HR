@@ -47,3 +47,7 @@ backend/db/seed-data-mysql.sql
 # Claude Code local settings — holds machine-local allow-list entries that can
 # embed hostnames and credentials. Local-only, like memory/.
 .claude/
+
+# Browser-automation artefacts from verification runs
+.playwright-mcp/
+*-after.png

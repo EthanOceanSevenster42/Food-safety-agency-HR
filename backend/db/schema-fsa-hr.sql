@@ -336,3 +336,297 @@ CREATE INDEX IF NOT EXISTS IX_FsaProgrammeActivities_Programme
 -- Which template version a programme is running, for the blast-radius figure
 -- the templates screen shows before a change is made.
 ALTER TABLE FsaProgrammes ADD COLUMN IF NOT EXISTS TemplateSnapshotAt TIMESTAMP(6) NULL;
+
+-- ---------------------------------------------------------------------------
+-- Reference layer. Everything below was previously hard-coded — either as a
+-- constant in a route file or as an array in a React component — which meant
+-- business content (the directors' decision, the reporting period, the entity
+-- details) could only be changed by editing and redeploying code.
+-- ---------------------------------------------------------------------------
+
+-- Single-value configuration and organisation details.
+CREATE TABLE IF NOT EXISTS FsaSettings (
+    SettingKey VARCHAR(60)  PRIMARY KEY,
+    Value      TEXT         NOT NULL,
+    Note       VARCHAR(255) NULL
+);
+
+-- Ordered vocabularies. One table rather than a dozen two-column tables: every
+-- one of these is (domain, code, label, optional severity, order).
+CREATE TABLE IF NOT EXISTS FsaLookups (
+    Id        SERIAL PRIMARY KEY,
+    Domain    VARCHAR(40)  NOT NULL,   -- alert_kind | phase | pipeline_stage | req_stage | owner | department | competence_legend | leave_status | leave_sort | coverage | programme_state
+    Code      VARCHAR(60)  NOT NULL,
+    Label     VARCHAR(160) NOT NULL,
+    Kind      VARCHAR(10)  NULL,       -- ok | warn | bad | info | na, where the label carries a severity
+    Detail    VARCHAR(400) NULL,
+    Route     VARCHAR(120) NULL,       -- where this entry's call to action leads
+    SortOrder INT          NOT NULL DEFAULT 0,
+    CONSTRAINT UQ_FsaLookups UNIQUE (Domain, Code)
+);
+
+CREATE INDEX IF NOT EXISTS IX_FsaLookups_Domain ON FsaLookups (Domain, SortOrder);
+
+-- The tiles that start a task on the HR home screen.
+CREATE TABLE IF NOT EXISTS FsaQuickActions (
+    Id        SERIAL PRIMARY KEY,
+    Route     VARCHAR(120) NOT NULL,
+    Icon      VARCHAR(60)  NOT NULL,
+    Title     VARCHAR(80)  NOT NULL,
+    Sub       VARCHAR(160) NOT NULL,
+    -- When set, the subtitle is replaced by a live count from the API rather
+    -- than the fixed Sub text (e.g. 'pending' -> "3 requests waiting on you").
+    CountKey  VARCHAR(40)  NULL,
+    CountOne  VARCHAR(80)  NULL,       -- singular phrasing for the count
+    CountMany VARCHAR(80)  NULL,       -- plural phrasing
+    CountZero VARCHAR(80)  NULL,       -- what to say at zero
+    SortOrder INT          NOT NULL DEFAULT 0,
+    IsActive  BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+-- A decision put to the directors, with its supporting figures as real
+-- columns. The dashboard previously recovered the two amounts by running a
+-- regular expression over the prose sentence.
+CREATE TABLE IF NOT EXISTS FsaDecisions (
+    Id          SERIAL PRIMARY KEY,
+    Screen      VARCHAR(30)  NOT NULL DEFAULT 'dash',
+    Title       VARCHAR(120) NOT NULL,
+    Body        TEXT         NOT NULL,
+    Detail      TEXT         NULL,
+    AgainstLabel VARCHAR(80) NULL,
+    AgainstValue VARCHAR(40) NULL,
+    AgainstBasis VARCHAR(200) NULL,
+    ForLabel    VARCHAR(80)  NULL,
+    ForValue    VARCHAR(40)  NULL,
+    ForBasis    VARCHAR(200) NULL,
+    SortOrder   INT          NOT NULL DEFAULT 0,
+    IsActive    BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS IX_FsaDecisions_Screen ON FsaDecisions (Screen, SortOrder);
+
+-- Where an alert's call to action leads. The route used to be recovered on the
+-- client by matching the Action text against a hard-coded map, so adding an
+-- alert meant editing React to make its button work.
+ALTER TABLE FsaAlerts ADD COLUMN IF NOT EXISTS Route VARCHAR(120) NULL;
+
+-- The registration column was one free-text field carrying three different
+-- sentence shapes ("Valid to 2027-04-30", "Expires 2026-10-14", "Expired
+-- 2026-08-31", "Not applicable"), so it could not be scanned or sorted. The
+-- date now has its own column; the text stays for anything unusual.
+ALTER TABLE FsaStaff ADD COLUMN IF NOT EXISTS RegExpiry DATE NULL;
+
+CREATE INDEX IF NOT EXISTS IX_FsaStaff_RegExpiry ON FsaStaff (RegKind, RegExpiry);
+
+-- ---------------------------------------------------------------------------
+-- One employee record, not two. The placement register (FsaStaff) and the
+-- employee table used by assets, KPI and the organogram held the same nine
+-- people as unconnected rows, so an asset, a KPI review and a placement could
+-- point at three different versions of one person. These columns move the
+-- placement facts onto Employees, which becomes the master record.
+-- ---------------------------------------------------------------------------
+ALTER TABLE Employees ADD COLUMN IF NOT EXISTS StaffNo      VARCHAR(20)  NULL;
+ALTER TABLE Employees ADD COLUMN IF NOT EXISTS Service      VARCHAR(50)  NULL;
+ALTER TABLE Employees ADD COLUMN IF NOT EXISTS Site         VARCHAR(255) NULL;
+ALTER TABLE Employees ADD COLUMN IF NOT EXISTS Contract     VARCHAR(50)  NULL;
+ALTER TABLE Employees ADD COLUMN IF NOT EXISTS Registration VARCHAR(100) NULL;
+ALTER TABLE Employees ADD COLUMN IF NOT EXISTS RegKind      VARCHAR(10)  NULL;
+ALTER TABLE Employees ADD COLUMN IF NOT EXISTS RegExpiry    DATE         NULL;
+-- Employees who are on the placement register. An office account created for
+-- system access only is not a placement.
+ALTER TABLE Employees ADD COLUMN IF NOT EXISTS OnRegister   BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- A staff number identifies a person, so it must be unique where present.
+CREATE UNIQUE INDEX IF NOT EXISTS UQ_Employees_StaffNo
+  ON Employees (StaffNo) WHERE StaffNo IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS IX_Employees_Register
+  ON Employees (CompanyId, OnRegister, RegKind, RegExpiry);
+
+-- ===========================================================================
+-- Monthly management report (handoff §5.3). A document tabled at the directors'
+-- meeting, not a dashboard: figures for a stated period, findings, the state of
+-- last month's actions, this month's commitments (ticked live in the meeting),
+-- decisions requested, and sign-off lines.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS FsaReports (
+    Id                SERIAL PRIMARY KEY,
+    Period            VARCHAR(7)   NOT NULL,   -- YYYY-MM
+    PeriodLabel       VARCHAR(80)  NOT NULL,   -- "1–31 August 2026"
+    PositionStatement TEXT         NOT NULL,
+    SourceNote        VARCHAR(200) NULL,       -- printed under each table
+    CompiledBy        VARCHAR(120) NULL,
+    CompiledAt        DATE         NULL,
+    ReviewedBy        VARCHAR(120) NULL,
+    ReviewedAt        DATE         NULL,
+    AcceptedBy        VARCHAR(120) NULL,
+    AcceptedAt        DATE         NULL,
+    CONSTRAINT UQ_FsaReports_Period UNIQUE (Period)
+);
+
+-- The eleven tracked indicators: actual against target, with a status class.
+CREATE TABLE IF NOT EXISTS FsaReportIndicators (
+    Id         SERIAL PRIMARY KEY,
+    ReportId   INT          NOT NULL,
+    Name       VARCHAR(160) NOT NULL,
+    Actual     VARCHAR(40)  NOT NULL,
+    Target     VARCHAR(40)  NOT NULL,
+    StatusKind VARCHAR(20)  NOT NULL,   -- ok | observation | finding
+    Note       VARCHAR(300) NULL,
+    SortOrder  INT          NOT NULL DEFAULT 0,
+    CONSTRAINT FK_FsaReportIndicators_Report FOREIGN KEY (ReportId)
+      REFERENCES FsaReports(Id) ON DELETE CASCADE
+);
+
+-- Findings and recommendations, evidence-led with a corrective action.
+CREATE TABLE IF NOT EXISTS FsaReportFindings (
+    Id               SERIAL PRIMARY KEY,
+    ReportId         INT          NOT NULL,
+    Kind             VARCHAR(20)  NOT NULL,  -- Finding | Observation | Recommendation | Note
+    Ref              VARCHAR(40)  NOT NULL,
+    Title            VARCHAR(255) NOT NULL,
+    Evidence         TEXT         NOT NULL,
+    CorrectiveAction TEXT         NULL,
+    Owner            VARCHAR(120) NULL,
+    DueDate          DATE         NULL,
+    SortOrder        INT          NOT NULL DEFAULT 0,
+    CONSTRAINT FK_FsaReportFindings_Report FOREIGN KEY (ReportId)
+      REFERENCES FsaReports(Id) ON DELETE CASCADE
+);
+
+-- Both "progress on prior actions" and "next-step commitments" — same shape,
+-- separated by Section. Commitments carry a tick that is set in the meeting.
+CREATE TABLE IF NOT EXISTS FsaReportActions (
+    Id        SERIAL PRIMARY KEY,
+    ReportId  INT          NOT NULL,
+    Section   VARCHAR(12)  NOT NULL,   -- prior | commitment
+    Body      TEXT         NOT NULL,
+    Owner     VARCHAR(120) NULL,
+    DueDate   DATE         NULL,
+    State     VARCHAR(20)  NULL,       -- prior rows: done | in progress | not started
+    Ticked    BOOLEAN      NOT NULL DEFAULT FALSE,
+    TickedBy  VARCHAR(255) NULL,
+    TickedAt  TIMESTAMP(6) NULL,
+    SortOrder INT          NOT NULL DEFAULT 0,
+    CONSTRAINT FK_FsaReportActions_Report FOREIGN KEY (ReportId)
+      REFERENCES FsaReports(Id) ON DELETE CASCADE
+);
+
+-- Decisions put to the directors, phrased as a decision they can take.
+CREATE TABLE IF NOT EXISTS FsaReportDecisions (
+    Id        SERIAL PRIMARY KEY,
+    ReportId  INT          NOT NULL,
+    Title     VARCHAR(255) NOT NULL,
+    Body      TEXT         NOT NULL,
+    SortOrder INT          NOT NULL DEFAULT 0,
+    CONSTRAINT FK_FsaReportDecisions_Report FOREIGN KEY (ReportId)
+      REFERENCES FsaReports(Id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS IX_FsaReportIndicators_Report ON FsaReportIndicators (ReportId, SortOrder);
+CREATE INDEX IF NOT EXISTS IX_FsaReportFindings_Report   ON FsaReportFindings (ReportId, SortOrder);
+CREATE INDEX IF NOT EXISTS IX_FsaReportActions_Report    ON FsaReportActions (ReportId, Section, SortOrder);
+CREATE INDEX IF NOT EXISTS IX_FsaReportDecisions_Report  ON FsaReportDecisions (ReportId, SortOrder);
+
+-- ===========================================================================
+-- Performance management (handoff §5.6). A pack per employee per cycle, in
+-- four stages, carrying three documents: the inspector job description (weighted
+-- key result areas), the KPI & KPA schedule (measures, weights, ratings) and the
+-- EDP. Packs are role-templated so an IJD/KPA set is role-specific.
+-- ===========================================================================
+
+-- Role templates: the default KRAs and KPA measures a new pack inherits.
+CREATE TABLE IF NOT EXISTS FsaRoleTemplates (
+    Id        SERIAL PRIMARY KEY,
+    Role      VARCHAR(160) NOT NULL UNIQUE,
+    Service   VARCHAR(50)  NULL,
+    Mandate   TEXT         NULL,       -- statutory mandate for the role
+    ReportsTo VARCHAR(160) NULL,
+    RegType   VARCHAR(120) NULL,       -- registration the placement requires
+    SortOrder INT          NOT NULL DEFAULT 0
+);
+
+-- Template KRAs (job-description side) and measures (KPA side).
+CREATE TABLE IF NOT EXISTS FsaRoleTemplateItems (
+    Id         SERIAL PRIMARY KEY,
+    TemplateId INT          NOT NULL,
+    Part       VARCHAR(10)  NOT NULL,  -- kra | measure
+    Area       VARCHAR(160) NOT NULL,
+    Detail     TEXT         NULL,      -- duties, or how the measure is counted
+    Weight     INT          NOT NULL DEFAULT 0,
+    Target     VARCHAR(80)  NULL,      -- measures only
+    SortOrder  INT          NOT NULL DEFAULT 0,
+    CONSTRAINT FK_FsaRoleTemplateItems_Template FOREIGN KEY (TemplateId)
+      REFERENCES FsaRoleTemplates(Id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS FsaPerfPacks (
+    Id         SERIAL PRIMARY KEY,
+    StaffNo    VARCHAR(20)  NOT NULL,
+    CycleYear  INT          NOT NULL,
+    -- objectives | midyear | yearend | closed
+    Stage      VARCHAR(20)  NOT NULL DEFAULT 'objectives',
+    Role       VARCHAR(160) NOT NULL,
+    TemplateId INT          NULL,
+    -- Per-document state: outstanding | draft | complete
+    JdState    VARCHAR(20)  NOT NULL DEFAULT 'outstanding',
+    KpiState   VARCHAR(20)  NOT NULL DEFAULT 'outstanding',
+    EdpState   VARCHAR(20)  NOT NULL DEFAULT 'outstanding',
+    Mandate    TEXT         NULL,
+    ReportsTo  VARCHAR(160) NULL,
+    RegType    VARCHAR(120) NULL,
+    UpdatedAt  TIMESTAMP(6) NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+    CONSTRAINT UQ_FsaPerfPacks UNIQUE (StaffNo, CycleYear),
+    CONSTRAINT FK_FsaPerfPacks_Template FOREIGN KEY (TemplateId)
+      REFERENCES FsaRoleTemplates(Id)
+);
+
+-- Weighted key result areas — the job-description tab.
+CREATE TABLE IF NOT EXISTS FsaPerfKras (
+    Id        SERIAL PRIMARY KEY,
+    PackId    INT          NOT NULL,
+    Area      VARCHAR(160) NOT NULL,
+    Duties    TEXT         NULL,
+    Weight    INT          NOT NULL DEFAULT 0,
+    SortOrder INT          NOT NULL DEFAULT 0,
+    CONSTRAINT FK_FsaPerfKras_Pack FOREIGN KEY (PackId)
+      REFERENCES FsaPerfPacks(Id) ON DELETE CASCADE
+);
+
+-- The KPA schedule. Rating is 1-5 against a "Meets" line of 3; anything below
+-- it is a shortfall, and the EDP goals are derived from those rather than typed.
+CREATE TABLE IF NOT EXISTS FsaPerfMeasures (
+    Id        SERIAL PRIMARY KEY,
+    PackId    INT          NOT NULL,
+    Area      VARCHAR(160) NOT NULL,
+    Detail    TEXT         NULL,
+    Target    VARCHAR(80)  NULL,
+    Weight    INT          NOT NULL DEFAULT 0,
+    Rating    INT          NULL,       -- 1-5, NULL until rated
+    SortOrder INT          NOT NULL DEFAULT 0,
+    CONSTRAINT FK_FsaPerfMeasures_Pack FOREIGN KEY (PackId)
+      REFERENCES FsaPerfPacks(Id) ON DELETE CASCADE
+);
+
+-- Development goals. MeasureId records which shortfall produced the goal.
+CREATE TABLE IF NOT EXISTS FsaPerfGoals (
+    Id         SERIAL PRIMARY KEY,
+    PackId     INT          NOT NULL,
+    MeasureId  INT          NULL,
+    Goal       TEXT         NOT NULL,
+    Provider   VARCHAR(160) NULL,
+    StartDate  DATE         NULL,
+    EndDate    DATE         NULL,
+    SignedBy   VARCHAR(120) NULL,
+    SignedAt   DATE         NULL,
+    SortOrder  INT          NOT NULL DEFAULT 0,
+    CONSTRAINT FK_FsaPerfGoals_Pack FOREIGN KEY (PackId)
+      REFERENCES FsaPerfPacks(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_FsaPerfGoals_Measure FOREIGN KEY (MeasureId)
+      REFERENCES FsaPerfMeasures(Id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS IX_FsaPerfKras_Pack     ON FsaPerfKras (PackId, SortOrder);
+CREATE INDEX IF NOT EXISTS IX_FsaPerfMeasures_Pack ON FsaPerfMeasures (PackId, SortOrder);
+CREATE INDEX IF NOT EXISTS IX_FsaPerfGoals_Pack    ON FsaPerfGoals (PackId, SortOrder);
+CREATE INDEX IF NOT EXISTS IX_FsaRoleTemplateItems_Tpl ON FsaRoleTemplateItems (TemplateId, Part, SortOrder);

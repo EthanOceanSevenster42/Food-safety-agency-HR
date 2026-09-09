@@ -9,6 +9,7 @@ import SowTemplateLibrary from '../components/SowTemplateLibrary.jsx';
 import Whiteboard from '../components/Whiteboard.jsx';
 import ReadOnlyBanner from '../components/ReadOnlyBanner.jsx';
 import { confirmDialog } from '../confirm.js';
+import useAutoSelectCompany from '../useAutoSelectCompany.js';
 
 function fmtDate(value) {
   if (!value) return '';
@@ -32,6 +33,8 @@ export default function ProcurementPage({ department = 'Procurement', pageLabel 
   const canEditCompanies = canEditSeg(me, 'companies');
   const [companies, setCompanies] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  // One company means nothing to choose — go straight in.
+  useAutoSelectCompany(companies, selectedId, setSelectedId);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -196,10 +199,21 @@ export default function ProcurementPage({ department = 'Procurement', pageLabel 
     const brandStyle = selectedCompany.brandColor ? { '--co-brand': selectedCompany.brandColor } : undefined;
     return (
       <div className="page procurement-page" style={brandStyle} data-brand={selectedCompany.brandColor || undefined}>
-        <button className="btn-ghost back-btn" onClick={() => setSelectedId(null)}>← All companies</button>
-
-        <header className="page-header">
+        {/* The back link, the company header and the Active/Completed strip
+            used to be three separate horizontal bands stacked above the
+            content, so a page with one project began 290px down. They are one
+            header row now. */}
+        <header className="page-header company-header">
           <div className="company-detail-head">
+            <button
+              type="button"
+              className="company-back"
+              onClick={() => setSelectedId(null)}
+              title="All companies"
+              aria-label="Back to all companies"
+            >
+              <i className="fas fa-arrow-left" aria-hidden="true" />
+            </button>
             {canEditCompanies ? (
               <button
                 type="button"
@@ -240,8 +254,17 @@ export default function ProcurementPage({ department = 'Procurement', pageLabel 
                 + New project
               </button>
             )}
+            {/* Destructive, so it is a ghost button rather than a solid one —
+                secondary to "+ New project" without becoming an unreadable
+                grey text link on the photographic ground. */}
             {canEditCompanies && (
-              <button className="btn-ghost danger" onClick={() => handleDeleteCompany(selectedCompany)}>Delete company</button>
+              <button
+                className="btn-ghost danger"
+                onClick={() => handleDeleteCompany(selectedCompany)}
+                title={`Delete ${selectedCompany.name} and everything on it`}
+              >
+                Delete company
+              </button>
             )}
           </div>
         </header>
@@ -381,13 +404,11 @@ export default function ProcurementPage({ department = 'Procurement', pageLabel 
             Companies are shared across all workspaces (Asset Control, Procurement, HR).
           </p>
         </div>
-        {companies.length > 0 && canEditCompanies && (
-          <div className="page-header-actions">
-            <button className="btn-primary" onClick={() => setCompanyModal({ mode: 'create' })}>
-              + Add company
-            </button>
-          </div>
-        )}
+        {/* No "+ Add company" button here. The grid below ends with a "New
+            company" card that does exactly this, so the button was a second
+            control for one action — and because this header centres its
+            content, it sat on its own in the middle of the page above the
+            thing it duplicated. */}
       </header>
 
       {!canEdit && <ReadOnlyBanner label="Procurement" />}

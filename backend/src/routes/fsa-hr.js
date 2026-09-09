@@ -15,15 +15,40 @@ const router = express.Router();
 router.use(requireAuth);
 
 // Phase labels used across the onboarding screens.
-const PHASE_NAMES = ['Arrival checklist', 'Phase 1 — Red', 'Phase 2 — Orange', 'Phase 3 — Green'];
-const PIPELINE_STAGES = ['Applied', 'Screening', 'Technical assessment', 'Offer', 'Onboarding'];
-const REQ_STAGES = [
-  null,
-  'Requested',
-  'Employee pack in development',
-  'With marketing',
-  'Live in pipeline',
-];
+// These vocabularies live in FsaLookups. They are read once and cached for the
+// process: they change when someone edits the reference data, not per request.
+// Previously each was an array literal here, so renaming a phase or adding a
+// pipeline column meant a code change and a deploy.
+let lookupCache = null;
+
+async function lookups(pool) {
+  if (lookupCache) return lookupCache;
+  const r = await pool.request().query(
+    `SELECT Domain, Code, Label, Kind, Detail, Route, SortOrder
+     FROM dbo.FsaLookups ORDER BY Domain, SortOrder`
+  );
+  const byDomain = new Map();
+  for (const row of r.recordset) {
+    if (!byDomain.has(row.Domain)) byDomain.set(row.Domain, []);
+    byDomain.get(row.Domain).push(row);
+  }
+  lookupCache = byDomain;
+  return lookupCache;
+}
+
+// A domain as a plain list of labels, indexed by its numeric code — the shape
+// the old array constants had.
+async function labelsByCode(pool, domain) {
+  const rows = (await lookups(pool)).get(domain) || [];
+  const out = [];
+  for (const row of rows) out[Number(row.Code)] = row.Label;
+  return out;
+}
+
+async function settings(pool) {
+  const r = await pool.request().query('SELECT SettingKey, Value FROM dbo.FsaSettings');
+  return Object.fromEntries(r.recordset.map((x) => [x.SettingKey, x.Value]));
+}
 
 const asBool = (v) => v === true || v === 1 || v === '1' || v === 'true';
 
@@ -51,43 +76,109 @@ router.get('/home', wrap(async (_req, res) => {
   const pool = await getPool();
   const [stats, alerts, notices, week, leave] = await Promise.all([
     statsFor(pool, 'home'),
-    pool.request().query(`SELECT Kind, Title, Body, Action, Ref FROM dbo.FsaAlerts ORDER BY SortOrder`),
+    pool.request().query(`SELECT Kind, Title, Body, Action, Ref, Route FROM dbo.FsaAlerts ORDER BY SortOrder`),
     pool.request().query(`SELECT NoticeDate, Title, Body FROM dbo.FsaNotices ORDER BY SortOrder`),
     pool.request().query(`SELECT DayLabel, Body FROM dbo.FsaWeekItems ORDER BY SortOrder`),
     pool.request().query(`SELECT COUNT(*) AS RowTally FROM dbo.FsaLeaveRequests WHERE Status = 'pending'`),
   ]);
 
   const pending = Number(leave.recordset[0].RowTally);
+
+  const [quick, kinds, cfg] = await Promise.all([
+    pool.request().query(`SELECT Route, Icon, Title, Sub, CountKey, CountOne, CountMany, CountZero
+                          FROM dbo.FsaQuickActions WHERE IsActive = 1 ORDER BY SortOrder`),
+    lookups(pool),
+    settings(pool),
+  ]);
+
+  // Live figures a quick action's subtitle can be built from.
+  const counts = { pending };
+
+  const expiring = Number(
+    (stats.find((x) => /expiring/i.test(x.Label)) || {}).Value || 0
+  ) || 0;
+
   res.json({
     stats: stats.map((s) => (s.Label === 'Leave requests pending' ? { ...s, Value: String(pending) } : s)),
     alerts: alerts.recordset,
     notices: notices.recordset,
     week: week.recordset,
     pending,
+    // The greeting screen's tiles and severity wording, so neither is compiled
+    // into the component.
+    quickActions: quick.recordset.map((q) => {
+      const n = q.CountKey ? counts[q.CountKey] : undefined;
+      let sub = q.Sub;
+      if (q.CountKey && n !== undefined) {
+        const tpl = n === 0 ? q.CountZero : n === 1 ? q.CountOne : q.CountMany;
+        if (tpl) sub = tpl.replace('{n}', String(n));
+      }
+      return { route: q.Route, icon: q.Icon, title: q.Title, sub };
+    }),
+    alertKinds: (kinds.get('alert_kind') || []).map((k) => ({
+      code: k.Code, label: k.Label, kind: k.Kind, detail: k.Detail,
+    })),
+    standing: {
+      pending,
+      expiring,
+      blocking: alerts.recordset.filter((a) => a.Kind === 'Finding').length,
+    },
+    org: { handling: cfg['org.handling'] ?? null },
   });
 }));
 
 // --- Directory & site placements -----------------------------------------
+// The register is a work list, not an alphabetical roll: by default the people
+// whose registration has lapsed or is about to come first.
+const STAFF_SORTS = {
+  attention: `CASE RegKind WHEN 'bad' THEN 0 WHEN 'warn' THEN 1 WHEN 'ok' THEN 2 ELSE 3 END,
+              RegExpiry NULLS LAST, Name`,
+  name: 'Name',
+  site: 'Site, Name',
+  service: 'Service, Name',
+  expiry: 'RegExpiry NULLS LAST, Name',
+};
+
 router.get('/staff', wrap(async (req, res) => {
   const pool = await getPool();
   const service = (req.query.service || 'All').toString();
   const q = (req.query.q || '').toString().trim().toLowerCase();
+  const sort = STAFF_SORTS[req.query.sort] ? req.query.sort : 'attention';
 
   const r = await pool
     .request()
-    .query(`SELECT StaffNo, Name, Role, Service, Site, Registration, RegKind, Contract
-            FROM dbo.FsaStaff ORDER BY SortOrder`);
+    .query(`SELECT StaffNo, Name, Role, Service, Site, Registration, RegKind, Contract, RegExpiry
+            FROM dbo.FsaStaff ORDER BY ${STAFF_SORTS[sort]}`);
 
   const all = r.recordset;
   const rows = all.filter(
     (p) =>
       (service === 'All' || p.Service === service) &&
-      (!q || `${p.Name}${p.Role}${p.Site}${p.Service}`.toLowerCase().includes(q))
+      (!q || `${p.Name}${p.Role}${p.Site}${p.Service}${p.StaffNo}`.toLowerCase().includes(q))
   );
+
+  // Which services carry site placements is reference data (FsaLookups, kind
+  // 'field'), not a set literal in the React component.
+  const lk = await lookups(pool);
+  const depts = lk.get('department') || [];
+
   res.json({
     rows,
     total: all.length,
     services: ['All', ...[...new Set(all.map((p) => p.Service))]],
+    // Both the short code and the full label, so a match works whichever of
+    // the two service vocabularies a row happens to use.
+    fieldServices: depts
+      .filter((x) => x.Kind === 'field')
+      .flatMap((x) => [x.Code, x.Label]),
+    sorts: (lk.get('staff_sort') || []).map((x) => ({ key: x.Code, label: x.Label })),
+    sort,
+    // Counted over the whole register, not the filtered view — otherwise
+    // filtering would hide the very thing this is meant to surface.
+    attention: {
+      expired: all.filter((p) => p.RegKind === 'bad').length,
+      expiring: all.filter((p) => p.RegKind === 'warn').length,
+    },
   });
 }));
 
@@ -128,13 +219,14 @@ router.get('/competence', wrap(async (_req, res) => {
 // --- Role requisitions ----------------------------------------------------
 router.get('/requisitions', wrap(async (_req, res) => {
   const pool = await getPool();
+  const reqStages = await labelsByCode(pool, 'req_stage');
   const r = await pool.request().query(`SELECT Id, Ref, Role, Dept, Site, Contract, Posts,
               RequestedBy, TargetStart, Reason, Stage, PackIjd, PackKpi, PackEdp
             FROM dbo.FsaRequisitions ORDER BY Ref DESC`);
 
   const rows = r.recordset.map((x) => ({
     ...x,
-    StageLabel: REQ_STAGES[x.Stage] || 'Requested',
+    StageLabel: reqStages[x.Stage] || 'Requested',
     Blocked: !(x.PackIjd && x.PackKpi && x.PackEdp),
   }));
   const stageCount = (n) => rows.filter((x) => x.Stage === n).length;
@@ -147,7 +239,7 @@ router.get('/requisitions', wrap(async (_req, res) => {
       { n: '4', title: 'Recruitment', owner: 'HR and the manager', body: 'Applicants count towards this requisition’s buckets, through to onboarding and Red to Green.', count: `${stageCount(4)} live` },
     ],
     channels: ['www.foodsafetyagency.co.za', 'LinkedIn', 'Industry WhatsApp groups', 'Academy alumni list'],
-    departments: ['APS', 'IMI & Classification', 'Lab', 'Auditing', 'Vet Services', 'Training', 'Egg Production Verification'],
+    departments: ((await lookups(pool)).get('department') || []).map((x) => x.Label),
     contracts: ['Permanent', 'Fixed term', 'Relief'],
     reasons: ['New post — growth', 'Replacement — resignation', 'Replacement — end of contract', 'Ends reliance on relief cover'],
   });
@@ -227,10 +319,11 @@ router.patch('/requisitions/:id', wrap(async (req, res) => {
 // --- Recruitment pipeline -------------------------------------------------
 router.get('/pipeline', wrap(async (_req, res) => {
   const pool = await getPool();
+  const pipelineStages = await labelsByCode(pool, 'pipeline_stage');
   const r = await pool.request().query(`SELECT Id, Ref, Role, Site, Tag, TagKind, Stage
             FROM dbo.FsaCandidates ORDER BY SortOrder`);
   res.json({
-    stages: PIPELINE_STAGES.map((label, i) => ({
+    stages: pipelineStages.map((label, i) => ({
       label,
       cards: r.recordset.filter((c) => c.Stage === i),
     })),
@@ -241,8 +334,10 @@ router.patch('/pipeline/:id', wrap(async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const stage = parseInt(req.body?.stage, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
-  if (!(stage >= 0 && stage < PIPELINE_STAGES.length)) {
-    return res.status(400).json({ error: `stage must be 0–${PIPELINE_STAGES.length - 1}` });
+  const pool0 = await getPool();
+  const pipelineStages = await labelsByCode(pool0, 'pipeline_stage');
+  if (!(stage >= 0 && stage < pipelineStages.length)) {
+    return res.status(400).json({ error: `stage must be 0–${pipelineStages.length - 1}` });
   }
 
   const pool = await getPool();
@@ -274,6 +369,7 @@ async function activitiesFor(pool, dept, phase) {
 
 router.get('/r2g', wrap(async (_req, res) => {
   const pool = await getPool();
+  const phaseNames = await labelsByCode(pool, 'phase');
   const [stats, cohort] = await Promise.all([
     statsFor(pool, 'r2g'),
     pool.request().query(`SELECT Id, Code, Name, Role, Dept, Site, StartDate, Mentor, Phase,
@@ -285,7 +381,7 @@ router.get('/r2g', wrap(async (_req, res) => {
     stats,
     cohort: cohort.recordset.map((c) => ({
       ...c,
-      PhaseLabel: PHASE_NAMES[c.Phase],
+      PhaseLabel: phaseNames[c.Phase],
       Pct: Math.round((c.P1 + c.P2 + c.P3) / 3),
     })),
     method: [
@@ -299,6 +395,7 @@ router.get('/r2g', wrap(async (_req, res) => {
 
 router.get('/r2g/:code', wrap(async (req, res) => {
   const pool = await getPool();
+  const phaseNames = await labelsByCode(pool, 'phase');
   const p = await pool
     .request()
     .input('code', sql.NVarChar(20), req.params.code)
@@ -331,7 +428,7 @@ router.get('/r2g/:code', wrap(async (req, res) => {
     const items = snapshot.recordset.filter((a) => a.Phase === ph);
     return {
       phase: ph,
-      title: PHASE_NAMES[ph],
+      title: phaseNames[ph],
       meta: ph === 0 ? 'Before the programme starts' : `Month ${ph}`,
       state: ph === 0 || ph < person.Phase ? 'done' : ph === person.Phase ? 'current' : 'future',
       items: items.map((it, i) => {
@@ -358,7 +455,7 @@ router.get('/r2g/:code', wrap(async (req, res) => {
   res.json({
     person: {
       ...person,
-      PhaseLabel: PHASE_NAMES[person.Phase],
+      PhaseLabel: phaseNames[person.Phase],
       Pct: Math.round((person.P1 + person.P2 + person.P3) / 3),
     },
     phases,
@@ -419,10 +516,7 @@ router.put('/r2g/:code/checks', wrap(async (req, res) => {
 // it adds on top, so the screen leads with those and keeps the locked ones
 // available but out of the way.
 
-const OWNERS = [
-  'Admin', 'HR', 'Finance', 'Marketing', 'Manager',
-  'Assistant manager', 'Green mentor', 'Inspector',
-];
+// Activity owners come from FsaLookups (domain 'owner').
 
 async function templateDepartments(pool) {
   const r = await pool.request().query(
@@ -433,6 +527,8 @@ async function templateDepartments(pool) {
 
 router.get('/templates', wrap(async (req, res) => {
   const pool = await getPool();
+  const phaseNames = await labelsByCode(pool, 'phase');
+  const owners = ((await lookups(pool)).get('owner') || []).map((x) => x.Label);
   const departments = await templateDepartments(pool);
   const dept = departments.includes(String(req.query.dept)) ? String(req.query.dept) : departments[0];
 
@@ -457,7 +553,7 @@ router.get('/templates', wrap(async (req, res) => {
     const own = items.filter((r) => !r.IsMaster);
     return {
       phase: ph,
-      title: PHASE_NAMES[ph],
+      title: phaseNames[ph],
       own,
       locked: items.filter((r) => r.IsMaster),
       ownCount: own.length,
@@ -469,7 +565,7 @@ router.get('/templates', wrap(async (req, res) => {
   res.json({
     dept,
     departments,
-    owners: OWNERS,
+    owners,
     phases,
     targets: targets.recordset,
     totals: {
@@ -661,6 +757,18 @@ router.delete('/templates/targets/:id', wrap(async (req, res) => {
 // A work queue, not a list: with thousands of employees the pending pile runs
 // to hundreds, so filtering, sorting and paging all happen in Postgres and the
 // client only ever holds one page.
+
+// Performance ratings run 1-5 with "Meets" at 3. Anything below it is a
+// shortfall, and a shortfall is what an EDP goal is derived from.
+const PERF_MEETS = 3;
+const PERF_GOAL_ROUTES = {
+  'Reporting deadlines met': ['Complete the Academy record-keeping and reporting refresher.', 'FSA Academy, Pretoria'],
+  'Registration currency': ['Attend the booked re-certification and lodge the renewed registration.', 'DALRRD'],
+  'Re-inspection closure': ['Complete the corrective-action follow-up module.', 'FSA Academy, Pretoria'],
+  'Sampling volumes met': ['Complete sampling-plan coaching with the area manager.', 'Area manager'],
+  'Classification accuracy': ['Attend classification calibration with a senior classifier.', 'FSA Academy, Pretoria'],
+};
+const PERF_GOAL_FALLBACK = ['Agree a development action with the line manager for this area.', 'Line manager'];
 
 const LEAVE_PAGE_SIZES = [25, 50, 100];
 
@@ -968,21 +1076,48 @@ router.patch('/documents/libraries/:id', wrap(async (req, res) => {
 // --- Management dashboard -------------------------------------------------
 router.get('/dashboard', wrap(async (_req, res) => {
   const pool = await getPool();
-  const [stats, services, watch] = await Promise.all([
+  const [stats, services, watch, decisions, cfg] = await Promise.all([
     statsFor(pool, 'dash'),
     pool.request().query(`SELECT Name, Staff, Vacancies, Utilisation, Pct
               FROM dbo.FsaServiceStats ORDER BY SortOrder`),
     pool.request().query(`SELECT Title, Body, Tag, TagKind FROM dbo.FsaWatchItems ORDER BY SortOrder`),
+    pool.request().query(`SELECT Title, Body, Detail,
+                                 AgainstLabel, AgainstValue, AgainstBasis,
+                                 ForLabel, ForValue, ForBasis
+                          FROM dbo.FsaDecisions
+                          WHERE Screen = 'dash' AND IsActive = 1
+                          ORDER BY SortOrder`),
+    settings(pool),
   ]);
+
+  const d = decisions.recordset[0] || null;
+
   res.json({
     stats,
     services: services.recordset,
     watch: watch.recordset,
-    period: 'Financial year to date, 1 March 2026 – 31 August 2026. Source: FSA placement register.',
-    decision: {
-      title: 'Decision for the directors',
-      body: 'Rustenburg and Bethlehem need two permanent inspectors to end reliance on relief cover.',
-      detail: 'Relief travel and overtime at the two sites came to R 214 800 over six months against an estimated R 96 000 for two permanent appointments.',
+    // Reporting scope and the utilisation thresholds are configuration, not
+    // constants compiled into the page.
+    period: cfg['dash.period'] ?? null,
+    thresholds: {
+      utilGood: Number(cfg['dash.utilGood'] ?? 90),
+      utilFair: Number(cfg['dash.utilFair'] ?? 85),
+    },
+    org: {
+      legalName: cfg['org.legalName'] ?? null,
+      directors: cfg['org.directors'] ?? null,
+      email: cfg['org.email'] ?? null,
+      phone: cfg['org.phone'] ?? null,
+      handling: cfg['org.handling'] ?? null,
+    },
+    decision: d && {
+      title: d.Title,
+      body: d.Body,
+      detail: d.Detail,
+      // Real columns, so the client no longer parses the amounts back out of
+      // the prose with a regular expression.
+      against: d.AgainstValue ? { label: d.AgainstLabel, value: d.AgainstValue, basis: d.AgainstBasis } : null,
+      for: d.ForValue ? { label: d.ForLabel, value: d.ForValue, basis: d.ForBasis } : null,
     },
   });
 }));
@@ -998,6 +1133,265 @@ router.get('/nav-counts', wrap(async (_req, res) => {
         WHERE DalrrdKind IN ('warn','bad')) AS CompetenceFlags,
       (SELECT COUNT(*) FROM dbo.FsaProgrammes WHERE StatusKind = 'bad') AS ProgrammesAtRisk
   `);
+  res.json(r.recordset[0]);
+}));
+
+
+// --- Monthly management report (§5.3) -------------------------------------
+// A document for the directors' meeting. Every figure is stored against a
+// stated period with a source line, so the report can be re-opened later and
+// still say what it said on the day.
+router.get('/report', wrap(async (req, res) => {
+  const pool = await getPool();
+  const period = (req.query.period || '').toString().trim();
+
+  // Branch rather than `WHERE (@period IS NULL OR Period = @period)`: Postgres
+  // cannot infer a bind parameter's type from `$1 IS NULL` and rejects the
+  // statement outright.
+  const cols = `SELECT Id, Period, PeriodLabel, PositionStatement, SourceNote,
+                       CompiledBy, CompiledAt, ReviewedBy, ReviewedAt, AcceptedBy, AcceptedAt
+                FROM dbo.FsaReports`;
+  const head = period
+    ? await pool.request().input('period', sql.NVarChar(7), period)
+        .query(`${cols} WHERE Period = @period LIMIT 1`)
+    : await pool.request().query(`${cols} ORDER BY Period DESC LIMIT 1`);
+  const report = head.recordset[0];
+  if (!report) return res.status(404).json({ error: 'No report for that period' });
+
+  const [indicators, findings, actions, decisions, periods] = await Promise.all([
+    pool.request().input('rid', sql.Int, report.Id)
+      .query(`SELECT Name, Actual, Target, StatusKind, Note
+              FROM dbo.FsaReportIndicators WHERE ReportId = @rid ORDER BY SortOrder`),
+    pool.request().input('rid', sql.Int, report.Id)
+      .query(`SELECT Kind, Ref, Title, Evidence, CorrectiveAction, Owner, DueDate
+              FROM dbo.FsaReportFindings WHERE ReportId = @rid ORDER BY SortOrder`),
+    pool.request().input('rid', sql.Int, report.Id)
+      .query(`SELECT Id, Section, Body, Owner, DueDate, State, Ticked, TickedBy, TickedAt
+              FROM dbo.FsaReportActions WHERE ReportId = @rid ORDER BY Section, SortOrder`),
+    pool.request().input('rid', sql.Int, report.Id)
+      .query(`SELECT Title, Body FROM dbo.FsaReportDecisions WHERE ReportId = @rid ORDER BY SortOrder`),
+    pool.request().query('SELECT Period, PeriodLabel FROM dbo.FsaReports ORDER BY Period DESC'),
+  ]);
+
+  const all = actions.recordset;
+  const commitments = all.filter((a) => a.Section === 'commitment');
+
+  res.json({
+    report,
+    indicators: indicators.recordset,
+    findings: findings.recordset,
+    priorActions: all.filter((a) => a.Section === 'prior'),
+    commitments,
+    decisions: decisions.recordset,
+    periods: periods.recordset,
+    // Derived, so the summary can never disagree with the table under it.
+    summary: {
+      indicators: indicators.recordset.length,
+      onTarget: indicators.recordset.filter((i) => i.StatusKind === 'ok').length,
+      observations: indicators.recordset.filter((i) => i.StatusKind === 'observation').length,
+      findingsCount: indicators.recordset.filter((i) => i.StatusKind === 'finding').length,
+      commitmentsTicked: commitments.filter((c) => c.Ticked).length,
+      commitmentsTotal: commitments.length,
+    },
+  });
+}));
+
+// Ticking a commitment in the meeting — the only write on this screen.
+router.post('/report/actions/:id/tick', wrap(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+  const ticked = asBool(req.body?.ticked);
+
+  const pool = await getPool();
+  const r = await pool
+    .request()
+    .input('id', sql.Int, id)
+    .input('ticked', sql.Bit, ticked ? 1 : 0)
+    .input('by', sql.NVarChar(255), ticked ? (req.user?.email || null) : null)
+    .query(`UPDATE dbo.FsaReportActions
+            SET Ticked = @ticked,
+                TickedBy = @by,
+                TickedAt = CASE WHEN @ticked = 1 THEN SYSUTCDATETIME() ELSE NULL END
+            OUTPUT INSERTED.Id, INSERTED.Ticked, INSERTED.TickedBy, INSERTED.TickedAt
+            WHERE Id = @id AND Section = 'commitment'`);
+  if (!r.recordset[0]) return res.status(404).json({ error: 'Commitment not found' });
+  res.json(r.recordset[0]);
+}));
+
+// --- Performance management (§5.6) ---------------------------------------
+// Pack completeness across the register, then one employee's pack.
+router.get('/performance', wrap(async (_req, res) => {
+  const pool = await getPool();
+  const r = await pool.request().query(
+    `SELECT p.Id, p.StaffNo, p.CycleYear, p.Stage, p.Role,
+            p.JdState, p.KpiState, p.EdpState,
+            s.Name, s.Service, s.Site
+     FROM dbo.FsaPerfPacks p
+     LEFT JOIN dbo.FsaStaff s ON s.StaffNo = p.StaffNo
+     ORDER BY s.Name`
+  );
+
+  const rows = r.recordset;
+  const complete = (x) =>
+    x.JdState === 'complete' && x.KpiState === 'complete' && x.EdpState === 'complete';
+
+  res.json({
+    rows,
+    stages: (await lookups(pool)).get('perf_stage')?.map((x) => ({
+      code: x.Code, label: x.Label, kind: x.Kind,
+    })) || [],
+    docStates: (await lookups(pool)).get('perf_doc_state')?.map((x) => ({
+      code: x.Code, label: x.Label, kind: x.Kind,
+    })) || [],
+    // Pack completeness is derived, never stored (§6).
+    summary: {
+      total: rows.length,
+      complete: rows.filter(complete).length,
+      outstanding: rows.filter((x) => !complete(x)).length,
+    },
+  });
+}));
+
+router.get('/performance/:staffNo', wrap(async (req, res) => {
+  const pool = await getPool();
+  const staffNo = req.params.staffNo;
+
+  const head = await pool
+    .request()
+    .input('sn', sql.NVarChar(20), staffNo)
+    .query(`SELECT p.Id, p.StaffNo, p.CycleYear, p.Stage, p.Role, p.TemplateId,
+                   p.JdState, p.KpiState, p.EdpState, p.Mandate, p.ReportsTo, p.RegType,
+                   s.Name, s.Service, s.Site, s.Registration, s.RegKind, s.RegExpiry, s.Contract
+            FROM dbo.FsaPerfPacks p
+            LEFT JOIN dbo.FsaStaff s ON s.StaffNo = p.StaffNo
+            WHERE p.StaffNo = @sn
+            ORDER BY p.CycleYear DESC
+            LIMIT 1`);
+  const pack = head.recordset[0];
+  if (!pack) return res.status(404).json({ error: 'No performance pack for that employee' });
+
+  const [kras, measures, goals] = await Promise.all([
+    pool.request().input('pid', sql.Int, pack.Id)
+      .query(`SELECT Id, Area, Duties, Weight FROM dbo.FsaPerfKras
+              WHERE PackId = @pid ORDER BY SortOrder`),
+    pool.request().input('pid', sql.Int, pack.Id)
+      .query(`SELECT Id, Area, Detail, Target, Weight, Rating FROM dbo.FsaPerfMeasures
+              WHERE PackId = @pid ORDER BY SortOrder`),
+    pool.request().input('pid', sql.Int, pack.Id)
+      .query(`SELECT g.Id, g.MeasureId, g.Goal, g.Provider, g.StartDate, g.EndDate,
+                     g.SignedBy, g.SignedAt, m.Area AS FromArea, m.Rating AS FromRating
+              FROM dbo.FsaPerfGoals g
+              LEFT JOIN dbo.FsaPerfMeasures m ON m.Id = g.MeasureId
+              WHERE g.PackId = @pid ORDER BY g.SortOrder`),
+  ]);
+
+  const rated = measures.recordset.filter((m) => m.Rating != null);
+  // A weighted score over the rated measures only — an unrated schedule should
+  // not read as a score of zero.
+  const weight = rated.reduce((n, m) => n + Number(m.Weight || 0), 0);
+  const weighted = weight
+    ? rated.reduce((n, m) => n + Number(m.Rating) * Number(m.Weight || 0), 0) / weight
+    : null;
+
+  res.json({
+    pack,
+    kras: kras.recordset,
+    measures: measures.recordset,
+    goals: goals.recordset,
+    ratingMeets: PERF_MEETS,
+    ratingLabels: Object.fromEntries(
+      ((await lookups(pool)).get('perf_rating') || []).map((x) => [x.Code, x.Label])
+    ),
+    // Shortfalls are computed from the ratings, and they are what the EDP is
+    // built from — the handoff is explicit that below-"Meets" areas are
+    // computed, not entered.
+    shortfalls: measures.recordset
+      .filter((m) => m.Rating != null && Number(m.Rating) < PERF_MEETS)
+      .map((m) => ({ id: m.Id, area: m.Area, rating: m.Rating })),
+    derived: {
+      ratedCount: rated.length,
+      measureCount: measures.recordset.length,
+      weightedScore: weighted == null ? null : Math.round(weighted * 100) / 100,
+      kraWeightTotal: kras.recordset.reduce((n, k) => n + Number(k.Weight || 0), 0),
+      measureWeightTotal: measures.recordset.reduce((n, m) => n + Number(m.Weight || 0), 0),
+    },
+  });
+}));
+
+// Rate a measure. Re-deriving the EDP is part of the same operation: a rating
+// that drops below "Meets" adds its development goal, and one that recovers
+// removes it, so the plan cannot drift away from the ratings that justify it.
+router.patch('/performance/:staffNo/measures/:id', wrap(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+
+  const raw = req.body?.rating;
+  const rating = raw === null || raw === '' ? null : parseInt(raw, 10);
+  if (rating !== null && !(rating >= 1 && rating <= 5)) {
+    return res.status(400).json({ error: 'rating must be 1–5, or null to clear it' });
+  }
+
+  const pool = await getPool();
+  const found = await pool
+    .request()
+    .input('id', sql.Int, id)
+    .input('sn', sql.NVarChar(20), req.params.staffNo)
+    .query(`SELECT m.Id, m.PackId, m.Area
+            FROM dbo.FsaPerfMeasures m
+            INNER JOIN dbo.FsaPerfPacks p ON p.Id = m.PackId
+            WHERE m.Id = @id AND p.StaffNo = @sn`);
+  const measure = found.recordset[0];
+  if (!measure) return res.status(404).json({ error: 'Measure not found on that pack' });
+
+  await pool.request()
+    .input('id', sql.Int, id)
+    .input('rating', sql.Int, rating)
+    .query('UPDATE dbo.FsaPerfMeasures SET Rating = @rating WHERE Id = @id');
+
+  const existing = await pool.request().input('mid', sql.Int, id)
+    .query('SELECT Id FROM dbo.FsaPerfGoals WHERE MeasureId = @mid');
+
+  if (rating != null && rating < PERF_MEETS) {
+    if (!existing.recordset[0]) {
+      const [goal, provider] = PERF_GOAL_ROUTES[measure.Area] || PERF_GOAL_FALLBACK;
+      const next = await pool.request().input('pid', sql.Int, measure.PackId)
+        .query('SELECT COALESCE(MAX(SortOrder), -1) + 1 AS NextSort FROM dbo.FsaPerfGoals WHERE PackId = @pid');
+      await pool.request()
+        .input('pid', sql.Int, measure.PackId)
+        .input('mid', sql.Int, id)
+        .input('goal', sql.NVarChar(sql.MAX), goal)
+        .input('prov', sql.NVarChar(160), provider)
+        .input('sort', sql.Int, Number(next.recordset[0].NextSort) || 0)
+        .query(`INSERT INTO dbo.FsaPerfGoals (PackId, MeasureId, Goal, Provider, SortOrder)
+                VALUES (@pid, @mid, @goal, @prov, @sort)`);
+    }
+  } else if (existing.recordset[0]) {
+    // Only remove a goal that is still unsigned; a signed development action
+    // stays on the record even if the rating later recovers.
+    await pool.request().input('mid', sql.Int, id)
+      .query('DELETE FROM dbo.FsaPerfGoals WHERE MeasureId = @mid AND SignedBy IS NULL');
+  }
+
+  res.json({ ok: true, id, rating });
+}));
+
+// Move the pack through its four-stage cycle.
+router.patch('/performance/:staffNo/stage', wrap(async (req, res) => {
+  const stage = (req.body?.stage || '').toString();
+  const pool = await getPool();
+  const allowed = ((await lookups(pool)).get('perf_stage') || []).map((x) => x.Code);
+  if (!allowed.includes(stage)) {
+    return res.status(400).json({ error: `stage must be one of: ${allowed.join(', ')}` });
+  }
+  const r = await pool
+    .request()
+    .input('sn', sql.NVarChar(20), req.params.staffNo)
+    .input('stage', sql.NVarChar(20), stage)
+    .query(`UPDATE dbo.FsaPerfPacks
+            SET Stage = @stage, UpdatedAt = SYSUTCDATETIME()
+            OUTPUT INSERTED.Id, INSERTED.StaffNo, INSERTED.Stage
+            WHERE StaffNo = @sn`);
+  if (!r.recordset[0]) return res.status(404).json({ error: 'Pack not found' });
   res.json(r.recordset[0]);
 }));
 

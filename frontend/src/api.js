@@ -706,8 +706,27 @@ export const api = {
   fsaDashboard() {
     return request('/fsa/dashboard');
   },
-  fsaStaff({ service = 'All', q = '' } = {}) {
-    return request(`/fsa/staff?service=${encodeURIComponent(service)}&q=${encodeURIComponent(q)}`);
+  fsaStaff({ service = 'All', q = '', sort = 'attention' } = {}) {
+    const p = new URLSearchParams({ service, q, sort });
+    return request(`/fsa/staff?${p}`);
+  },
+  fsaReport(period) {
+    return request('/fsa/report' + (period ? '?period=' + encodeURIComponent(period) : ''));
+  },
+  fsaTickCommitment(id, ticked) {
+    return request('/fsa/report/actions/' + id + '/tick', { method: 'POST', body: JSON.stringify({ ticked }) });
+  },
+  fsaPerformance() {
+    return request('/fsa/performance');
+  },
+  fsaPerfPack(staffNo) {
+    return request('/fsa/performance/' + encodeURIComponent(staffNo));
+  },
+  fsaRateMeasure(staffNo, id, rating) {
+    return request('/fsa/performance/' + encodeURIComponent(staffNo) + '/measures/' + id, { method: 'PATCH', body: JSON.stringify({ rating }) });
+  },
+  fsaSetPerfStage(staffNo, stage) {
+    return request('/fsa/performance/' + encodeURIComponent(staffNo) + '/stage', { method: 'PATCH', body: JSON.stringify({ stage }) });
   },
   fsaCompetence() {
     return request('/fsa/competence');

@@ -344,6 +344,29 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
 .aps-table .aps-td-mono { font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
 .aps-table-empty { text-align: center; padding: 2rem; color: #9ca3af; }
 
+/* A totals row, so a table of parts can be reconciled against the headline
+   figure above it instead of taken on trust. */
+.aps-table tfoot td {
+  background: #f7fafb; border-top: 2px solid var(--aps-line);
+  font-weight: 700; color: var(--aps-heading);
+}
+
+/* Page furniture — the entity, its directors and the handling marking. It was
+   a card in the content rail, competing with the watch list and dragging one
+   column 209px past the other. */
+.aps-page-foot {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px;
+  margin-top: 18px; padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.9); border-radius: 10px;
+  box-shadow: var(--aps-card-shadow);
+  font-size: 0.74rem; color: var(--aps-muted);
+}
+.aps-page-foot-name { font-weight: 700; color: var(--aps-heading); }
+.aps-page-foot-mark {
+  margin-left: auto; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; font-size: 0.66rem; color: #b45309;
+}
+
 /* Dense variant for work queues, where an extra column beats extra padding. */
 .aps-table--dense th { padding: 10px 12px; }
 .aps-table--dense td { padding: 10px 12px; }
@@ -401,7 +424,11 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
 .aps-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* --- misc --------------------------------------------------------------- */
-.aps-bar { display: block; height: 6px; border-radius: 3px; background: var(--aps-hair); overflow: hidden; }
+/* flex sizing so the bar survives a flex row. As a display:block span with
+   no intrinsic width it collapsed to 0px next to the percentage label on
+   the management dashboard, so those utilisation bars never drew. The
+   other two callers sit in block parents, where flex is simply ignored. */
+.aps-bar { display: block; flex: 1 1 auto; min-width: 0; height: 6px; border-radius: 3px; background: var(--aps-hair); overflow: hidden; }
 .aps-bar > span { display: block; height: 100%; border-radius: 3px; }
 
 .aps-note { font-size: 0.8rem; color: var(--aps-muted); line-height: 1.55; }
@@ -415,6 +442,94 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
 .aps-alert--info { border-left-color: var(--aps-primary); }
 .aps-alert--na   { border-left-color: #9ca3af; }
 .aps-alert-title { font-weight: 600; color: var(--aps-heading); font-size: 0.88rem; margin: 8px 0 4px; }
+
+/* A band that splits a page into "act on this" and "read this". It sits on
+   the photograph rather than inside a card, so it takes the same white +
+   shadow treatment as .aps-crumb and .aps-page-title. */
+.aps-section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin: 22px 0 10px;
+}
+.aps-section-head h2 {
+  margin: 0; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.aps-section-note {
+  font-size: 0.76rem; color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* The "what is waiting on me" line under the greeting. Its own surface so the
+   counts read as data rather than as more of the welcome sentence. */
+.aps-standing {
+  display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center;
+  background: rgba(255, 255, 255, 0.94); border-radius: 10px;
+  box-shadow: var(--aps-card-shadow); padding: 11px 16px; margin-bottom: 16px;
+}
+.aps-standing-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--aps-heading); }
+.aps-standing-item i { font-size: 0.78rem; }
+.aps-standing-count { font-weight: 700; }
+.aps-standing-sep { color: #d1d5db; }
+
+/* Quick-action tile: a link that has to read as a button-sized target. */
+.aps-quick {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px;
+  border: 1px solid var(--aps-line); border-radius: 10px;
+  text-decoration: none; background: #fff; color: inherit;
+  transition: border-color 120ms, box-shadow 120ms, transform 120ms;
+}
+.aps-quick:hover {
+  border-color: var(--aps-primary); box-shadow: var(--aps-card-shadow);
+  transform: translateY(-1px);
+}
+.aps-quick-title { font-weight: 600; font-size: 0.82rem; color: var(--aps-heading); }
+.aps-quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; }
+
+/* Alert footer: the action sits left, the reference is demoted to the right. */
+.aps-alert-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.aps-alert-ref { font-size: 0.68rem; color: var(--aps-muted); }
+
+/* The directors' ask. It used to be the third card in a side rail, below a
+   watch list — the one thing the meeting has to resolve, in the least
+   prominent slot on the page. Given its own full-width block instead. */
+.aps-decision {
+  background: #fff; border-radius: 12px; box-shadow: var(--aps-card-shadow);
+  border-left: 4px solid var(--aps-primary);
+  padding: 18px 20px; margin-bottom: 18px;
+}
+.aps-decision-label {
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--aps-primary); margin-bottom: 6px;
+}
+.aps-decision-ask {
+  margin: 0 0 4px; font-size: 1.02rem; font-weight: 700; line-height: 1.35;
+  color: var(--aps-heading); letter-spacing: -0.01em;
+}
+
+/* Two money figures side by side. The comparison was previously buried in a
+   sentence and half-repeated in a stat tile, so the reader had to hold both
+   numbers in their head to see the gap. */
+.aps-figures {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px; margin: 14px 0 12px;
+}
+.aps-figure {
+  border: 1px solid var(--aps-line); border-radius: 10px; padding: 12px 14px;
+  background: #fbfcfd;
+}
+.aps-figure--against { border-color: rgba(237, 50, 55, 0.35); background: rgba(237, 50, 55, 0.04); }
+.aps-figure--for     { border-color: rgba(31, 122, 82, 0.35);  background: rgba(31, 122, 82, 0.05); }
+.aps-figure-label {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--aps-muted);
+}
+.aps-figure-value {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 1.32rem; font-weight: 600; color: var(--aps-heading);
+  margin: 3px 0 2px; letter-spacing: -0.02em;
+}
+.aps-figure-basis { font-size: 0.72rem; color: var(--aps-muted); line-height: 1.4; }
 
 .aps-two-col { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 /* A queue table beside a narrow companion panel — the table needs the room. */
@@ -951,3 +1066,256 @@ button.aps-nav-group:hover { color: var(--aps-side-item); }
   text-align: left;
   font-size: 0.72rem;
 }
+
+/* --- company drill-down: one header band, not four --------------------------
+   The back link, the company identity and the Active/Completed filter were
+   three stacked strips above the content, on top of the tool's own tab strip.
+   On a company with no projects the first real content began 290px down the
+   page and the rest was empty background. */
+
+/* A round back button that lives inside the header row. */
+.aps-main .company-back {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--aps-line);
+  background: #fff;
+  color: var(--aps-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-right: 4px;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.aps-main .company-back:hover {
+  color: var(--aps-primary);
+  border-color: var(--aps-primary);
+  background: #f2fbfc;
+}
+
+/* The old standalone back button is now redundant wherever the round one is
+   used; where a page still renders it, keep it tight rather than a full band. */
+.aps-main .back-btn { margin-bottom: 8px; }
+
+
+/* The status filter belongs on the header row, not on a band of its own. */
+.aps-main .project-tabs { margin: 0 0 12px; }
+
+/* An empty state was 56px of padding for two lines of text — a 185px white
+   box on an otherwise empty page. */
+.aps-main .empty-state { padding: 30px 24px; }
+.aps-main .empty-state p { margin-bottom: 0; }
+
+/* --- monthly management report (§5.3) ------------------------------------ */
+/* A document, so the position statement reads as prose and every table
+   carries the source line the handoff requires. */
+.report-position { margin: 0; font-size: 0.92rem; line-height: 1.6; color: var(--aps-text); max-width: 78ch; }
+.report-source {
+  margin: 4px 0 0; font-size: 0.7rem; color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.report-corrective { border-left: 2px solid var(--aps-line); padding-left: 10px; margin-top: 8px; }
+.report-corrective-label {
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--aps-primary);
+}
+.report-ticked td { background: rgba(31, 122, 82, 0.05); }
+.report-tick { width: 17px; height: 17px; accent-color: var(--aps-primary); cursor: pointer; }
+
+.report-signoff { display: flex; flex-direction: column; gap: 18px; }
+.report-signoff-line { display: flex; align-items: baseline; gap: 12px; }
+.report-signoff-label {
+  flex: 0 0 104px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--aps-muted);
+}
+.report-signoff-rule {
+  flex: 1 1 auto; min-width: 0; border-bottom: 1px solid #9ca3af;
+  padding-bottom: 2px; font-size: 0.84rem; color: var(--aps-heading);
+}
+.report-signoff-date { flex: 0 0 96px; font-size: 0.76rem; color: var(--aps-muted); }
+
+/* --- performance packs (§5.6) -------------------------------------------- */
+/* The four-stage cycle marker. The skewed three-bar device is allowed on thin
+   step markers like this one, and nowhere else on the page. */
+.perf-steps {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+}
+.perf-step-bar {
+  display: block; height: 6px; border-radius: 2px; background: var(--aps-hair);
+  transform: skewX(-11deg);
+}
+.perf-step-label {
+  display: block; margin-top: 7px; font-size: 0.72rem; font-weight: 600;
+  color: var(--aps-muted);
+}
+.perf-step.is-done .perf-step-bar { background: #1f7a52; }
+.perf-step.is-current .perf-step-bar { background: var(--aps-primary); }
+.perf-step.is-current .perf-step-label { color: var(--aps-heading); }
+.perf-of { font-size: 0.9rem; font-weight: 400; color: var(--aps-muted); }
+.perf-reg { font-size: 0.98rem; line-height: 1.3; }
+.perf-short td { background: rgba(237, 50, 55, 0.04); }
+
+/* The rail can still outrun a very short window. A fade at its foot says so —
+   a hidden scrollbar made the last item look like the end of the list. */
+.aps-side--open .aps-nav {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent 100%);
+}
+/* No fade once the rail is scrolled to the end. */
+.aps-side--open .aps-nav.is-at-end {
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+/* --- department method templates ---------------------------------------- */
+/* The four phases were stacked in a 692px column with a 533px rail beside
+   them that ran out of content 857px early — two screens of scrolling for
+   four cards holding one or two activities each. They run across the page
+   now, which also makes the phases comparable at a glance. */
+.templates-lede { margin-bottom: 16px; }
+
+.templates-phases {
+  display: grid;
+  /* 270px, not 320px: in a 1241px content column a 320px minimum only fits
+     three tracks, so the fourth phase wrapped onto a row of its own. */
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+/* A phase card carries an inline add-activity form, so it needs to be able to
+   grow past its neighbours without stretching the whole row. */
+.templates-phases > .aps-card { align-self: start; }
+
+/* Below roughly 1180px the four no longer fit, and two rows of two reads
+   better than three plus a stray. */
+@media (max-width: 1180px) {
+  .templates-phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .templates-phases { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- two fixes on the inherited asset screens ---------------------------- */
+
+/* The brand accent on a company header was a 3px vertical bar pinned to the
+   left of .company-detail-head. That worked when the header began with the
+   logo; now that the round back button is the first thing in the row, the bar
+   hangs off to its left and reads as a stray line. The logo already carries
+   the brand colour, so the bar is redundant as well as misplaced. */
+.aps-main .page[data-brand] .company-detail-head { padding-left: 0; }
+.aps-main .page[data-brand] .company-detail-head::before { content: none; }
+
+/* The repair-coordinator banner used --brand-teal-50, which is a 6% alpha
+   tint — fine on a white page, invisible over the photograph. Its label and
+   the coordinator's address were dark text on a dark ground. It gets a real
+   surface, like every other card on these screens. */
+.aps-main .coordinator-banner {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--aps-line);
+  border-left: 4px solid var(--aps-primary);
+  border-radius: 10px;
+  box-shadow: var(--aps-card-shadow);
+  align-items: center;
+}
+.aps-main .coordinator-banner-icon { color: var(--aps-primary); }
+.aps-main .coordinator-banner-label { color: var(--aps-muted); }
+.aps-main .coordinator-banner-value { color: var(--aps-heading); font-size: 0.9rem; }
+.aps-main .coordinator-banner-info,
+.aps-main .coordinator-banner .muted { color: var(--aps-muted); }
+
+/* --- inherited pages keep LANCorp's original header layout ---------------
+   LANCorp's .page-header is a left-aligned row with the actions pushed to the
+   right edge:
+
+     display: flex; align-items: flex-start; justify-content: space-between;
+
+   Earlier in this stylesheet that was overridden into a centred column, which
+   is what put a lone action button on its own row in the middle of the page.
+   The original layout is restored here for the fourteen inherited pages. The
+   FSA hub screens are unaffected — they use .aps-page-head, not .page-header.
+
+   What is NOT restored is the colour: these pages sit on the photographic
+   ground, so the heading stays white with a shadow rather than near-black. */
+.aps-main .page-header:not(:has(.company-detail-head)) {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  text-align: left;
+  gap: 16px;
+}
+.aps-main .page-header:not(:has(.company-detail-head)) > div { text-align: left; }
+.aps-main .page-header:not(:has(.company-detail-head)) > div > p {
+  margin-left: 0;
+  margin-right: 0;
+}
+.aps-main .page-header:not(:has(.company-detail-head)) > .page-header-actions,
+.aps-main .page-header:not(:has(.company-detail-head)) > .page-actions {
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* Below 760px the row stacks, as the original did. */
+@media (max-width: 760px) {
+  .aps-main .page-header:not(:has(.company-detail-head)) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .aps-main .page-header:not(:has(.company-detail-head)) > .page-header-actions,
+  .aps-main .page-header:not(:has(.company-detail-head)) > .page-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* The inline "new person" block inside the user form.
+   Not scoped to .aps-main: the modal renders through a portal on document.body,
+   so an .aps-main prefix never reaches it and the block drew unstyled. */
+.new-person-block {
+  /* A direct child of the modal's two-column grid, spanning both: five fields
+     stacked in the 272px Account column made the dialog 868px tall. Across the
+     full 900px they sit three-up and the dialog is far shorter. */
+  grid-column: 1 / -1;
+  border: 1px solid var(--aps-line, #e4e8eb);
+  border-left: 3px solid var(--aps-primary, #007890);
+  border-radius: 8px;
+  background: #f8feff;
+  padding: 12px 14px;
+  margin: 2px 0 12px;
+}
+.new-person-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aps-primary, #007890);
+  margin-bottom: 10px;
+}
+
+/* Name spans the block; the rest pair up and fall to one column when there is
+   no room. min-width 0 so a long label cannot squeeze its own input away. */
+.new-person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 4px 14px;
+  align-items: start;
+}
+.new-person-grid > .field { min-width: 0; margin-bottom: 8px; }
+.new-person-grid label {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.new-person-grid input,
+.new-person-grid select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.new-person-block > small { display: block; margin-top: 2px; line-height: 1.45; }

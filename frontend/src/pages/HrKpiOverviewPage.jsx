@@ -9,6 +9,7 @@ import CompanyGrid from '../components/CompanyGrid.jsx';
 import EmployeeAnalysisModal from '../components/EmployeeAnalysisModal.jsx';
 import ReadOnlyBanner from '../components/ReadOnlyBanner.jsx';
 import { confirmDialog } from '../confirm.js';
+import useAutoSelectCompany from '../useAutoSelectCompany.js';
 
 const FREQUENCY_OPTIONS = [
   { value: 'Quarterly',  label: 'Quarterly' },
@@ -25,6 +26,8 @@ export default function HrKpiOverviewPage() {
   const canEditCompanies = canEditSeg(auth.getUser(), 'companies');
   const [companies, setCompanies] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  // One company means nothing to choose — go straight in.
+  useAutoSelectCompany(companies, selectedId, setSelectedId);
   const [employees, setEmployees] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,11 +227,18 @@ export default function HrKpiOverviewPage() {
       : undefined;
     return (
       <div className="page" style={brandStyle} data-brand={selectedCompany.brandColor || undefined}>
-        <button className="btn-ghost back-btn" onClick={() => setSelectedId(null)}>
-          ← All companies
-        </button>
-        <header className="page-header">
+        <header className="page-header company-header">
           <div className="company-detail-head">
+            {/* The back link was a band of its own above the header. */}
+            <button
+              type="button"
+              className="company-back"
+              onClick={() => setSelectedId(null)}
+              title="All companies"
+              aria-label="Back to all companies"
+            >
+              <i className="fas fa-arrow-left" aria-hidden="true" />
+            </button>
             {selectedCompany.logoUrl ? (
               <img className="company-logo-lg" src={selectedCompany.logoUrl} alt={selectedCompany.name} />
             ) : (

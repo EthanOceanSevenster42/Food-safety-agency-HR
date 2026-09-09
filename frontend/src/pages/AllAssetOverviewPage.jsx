@@ -13,6 +13,7 @@ import TransferAssetModal from '../components/TransferAssetModal.jsx';
 import CategoryDefaultsModal from '../components/CategoryDefaultsModal.jsx';
 import { getAssetStatus } from '../utils/assetMath.js';
 import { confirmDialog } from '../confirm.js';
+import useAutoSelectCompany from '../useAutoSelectCompany.js';
 
 export default function AllAssetOverviewPage() {
   const me = auth.getUser();
@@ -20,6 +21,8 @@ export default function AllAssetOverviewPage() {
   const canEditCompanies = canEdit(me, 'companies');
   const [companies, setCompanies] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  // One company means nothing to choose — go straight in.
+  useAutoSelectCompany(companies, selectedId, setSelectedId);
   const [employees, setEmployees] = useState([]);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -202,9 +205,18 @@ export default function AllAssetOverviewPage() {
 
     return (
       <div className="page" style={brandStyle} data-brand={selectedCompany.brandColor || undefined}>
-        <button className="btn-ghost back-btn" onClick={() => setSelectedId(null)}>← All companies</button>
-        <header className="page-header">
+        <header className="page-header company-header">
           <div className="company-detail-head">
+            {/* The back link was a band of its own above the header. */}
+            <button
+              type="button"
+              className="company-back"
+              onClick={() => setSelectedId(null)}
+              title="All companies"
+              aria-label="Back to all companies"
+            >
+              <i className="fas fa-arrow-left" aria-hidden="true" />
+            </button>
             {canEditCompanies ? (
               <button
                 type="button"

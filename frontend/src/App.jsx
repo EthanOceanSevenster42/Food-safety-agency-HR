@@ -14,6 +14,8 @@ import OrganogramPage from './pages/OrganogramPage.jsx';
 import NoAccessPage from './pages/NoAccessPage.jsx';
 
 // FSA HR — the People & management hub
+import ReportPage from './fsa/ReportPage.jsx';
+import PerformancePage from './fsa/PerformancePage.jsx';
 import HrHomePage from './fsa/HrHomePage.jsx';
 import DashboardPage from './fsa/DashboardPage.jsx';
 import DirectoryPage from './fsa/DirectoryPage.jsx';
@@ -68,6 +70,9 @@ export default function App() {
         {/* --- People & management hub ---------------------------------- */}
         <Route path="/hr-home" element={<HrHomePage />} />
         <Route path="/management-dashboard" element={<DashboardPage />} />
+        <Route path="/monthly-report" element={<ReportPage />} />
+        <Route path="/performance" element={<PerformancePage />} />
+        <Route path="/performance/:staffNo" element={<PerformancePage />} />
         <Route path="/directory" element={<DirectoryPage />} />
         <Route path="/competence" element={<CompetencePage />} />
         <Route path="/requisitions" element={<RequisitionsPage />} />

@@ -287,10 +287,10 @@ export const ACKNOWLEDGEMENTS = [
 
 // HR home
 export const ALERTS = [
-  ['Finding', 'Placement blocked — Rustenburg abattoir', 'M. Sithole’s DALRRD registration lapsed on 31 August 2026. The placement is suspended until re-registration is confirmed; relief cover is in place from Brits until 19 September.', 'Open competence register', 'HR-2026-0431'],
-  ['Observation', 'Two registrations expire within 60 days', 'A. Pretorius (classification, 14 October) and one veterinary technician (2 November). Both have Academy re-certification dates booked.', 'View expiry schedule', 'HR-2026-0428'],
-  ['Recommendation', 'Medical surveillance overdue at Cato Ridge', 'Four inspectors are past their annual occupational health review. The provider has offered an on-site day on 24 September, which avoids four separate trips.', 'Confirm the on-site day', 'HR-2026-0419'],
-  ['Note', 'Two fixed-term contracts end this month', 'J. van Wyk (Ceres packhouse) and P. September (Paarl) end on 30 September. Both sites have confirmed continued volumes for the citrus season.', 'Prepare renewals', 'HR-2026-0412'],
+  ['Finding', 'Placement blocked — Rustenburg abattoir', 'M. Sithole’s DALRRD registration lapsed on 31 August 2026. The placement is suspended until re-registration is confirmed; relief cover is in place from Brits until 19 September.', 'Open competence register', 'HR-2026-0431', '/competence'],
+  ['Observation', 'Two registrations expire within 60 days', 'A. Pretorius (classification, 14 October) and one veterinary technician (2 November). Both have Academy re-certification dates booked.', 'View expiry schedule', 'HR-2026-0428', '/competence'],
+  ['Recommendation', 'Medical surveillance overdue at Cato Ridge', 'Four inspectors are past their annual occupational health review. The provider has offered an on-site day on 24 September, which avoids four separate trips.', 'Confirm the on-site day', 'HR-2026-0419', '/leave'],
+  ['Note', 'Two fixed-term contracts end this month', 'J. van Wyk (Ceres packhouse) and P. September (Paarl) end on 30 September. Both sites have confirmed continued volumes for the citrus season.', 'Prepare renewals', 'HR-2026-0412', '/directory'],
 ];
 
 export const NOTICES = [
@@ -358,3 +358,162 @@ export const STATS = {
     ['96%', 'Acknowledgements received', null],
   ],
 };
+
+// ---------------------------------------------------------------------------
+// Reference data. Each block below replaces a constant that previously lived
+// in a route file or a React component, where business content could only be
+// changed by editing and redeploying code.
+// ---------------------------------------------------------------------------
+
+// [key, value, note]
+export const SETTINGS = [
+  ['org.legalName', 'Food Safety Agency (Pty) Ltd', 'Shown in the dashboard footer'],
+  ['org.directors', 'L. Visagie, H. Nel, EJ. Smit, T. Streicher', 'Comma-separated'],
+  ['org.email', 'info@afsq.co.za', null],
+  ['org.phone', '(012) 361 1937', null],
+  ['org.handling', 'Internal use only', 'Handling marking on management reports'],
+  ['dash.period', 'Financial year to date, 1 March 2026 \u2013 31 August 2026. Source: FSA placement register.', 'Reporting scope for the management dashboard'],
+  ['dash.utilGood', '90', 'Utilisation at or above this is on target'],
+  ['dash.utilFair', '85', 'Utilisation below this is flagged'],
+  ['competence.expiryWindowDays', '60', 'Window for the "expires soon" state'],
+];
+
+// [domain, code, label, kind, detail, route, sort]
+export const LOOKUPS = [
+  // How an alert's severity is described. The codes are the audit terms that
+  // FsaAlerts stores; the labels are what a reader sees.
+  ['alert_kind', 'Finding', 'Blocking', 'bad', 'Something is stopped until this is resolved', null, 0],
+  ['alert_kind', 'Observation', 'Due soon', 'warn', 'Needs action before a date', null, 1],
+  ['alert_kind', 'Recommendation', 'To decide', 'info', 'A proposal awaiting a decision', null, 2],
+  ['alert_kind', 'Note', 'For information', 'na', 'No action required', null, 3],
+
+  // Red to Green phases.
+  ['phase', '0', 'Arrival checklist', 'na', 'Before the programme starts', null, 0],
+  ['phase', '1', 'Phase 1 \u2014 Red', 'bad', 'Month 1', null, 1],
+  ['phase', '2', 'Phase 2 \u2014 Orange', 'warn', 'Month 2', null, 2],
+  ['phase', '3', 'Phase 3 \u2014 Green', 'ok', 'Month 3', null, 3],
+
+  // A phase's state on an individual's programme page.
+  ['programme_state', 'done', 'Passed', 'ok', null, null, 0],
+  ['programme_state', 'current', 'In progress', 'info', null, null, 1],
+  ['programme_state', 'future', 'Not started', 'na', null, null, 2],
+
+  // Recruitment pipeline columns.
+  ['pipeline_stage', '0', 'Applied', null, null, null, 0],
+  ['pipeline_stage', '1', 'Screening', null, null, null, 1],
+  ['pipeline_stage', '2', 'Technical assessment', null, null, null, 2],
+  ['pipeline_stage', '3', 'Offer', null, null, null, 3],
+  ['pipeline_stage', '4', 'Onboarding', null, null, null, 4],
+
+  // Requisition stages. Stage 0 is unused, so these start at 1.
+  ['req_stage', '1', 'Requested', 'na', null, null, 1],
+  ['req_stage', '2', 'Employee pack in development', 'warn', null, null, 2],
+  ['req_stage', '3', 'With marketing', 'info', null, null, 3],
+  ['req_stage', '4', 'Live in pipeline', 'ok', null, null, 4],
+
+  // Who can own a template activity.
+  ['owner', 'Admin', 'Admin', null, null, null, 0],
+  ['owner', 'HR', 'HR', null, null, null, 1],
+  ['owner', 'Finance', 'Finance', null, null, null, 2],
+  ['owner', 'Marketing', 'Marketing', null, null, null, 3],
+  ['owner', 'Manager', 'Manager', null, null, null, 4],
+  ['owner', 'Assistant manager', 'Assistant manager', null, null, null, 5],
+  ['owner', 'Green mentor', 'Green mentor', null, null, null, 6],
+  ['owner', 'Inspector', 'Inspector', null, null, null, 7],
+
+  // Service areas. Kind 'field' marks the two that carry site placements.
+  // Code is the short form the placement register stores in FsaStaff.Service;
+  // Label is the full name the service statistics use. The two vocabularies
+  // already existed in the data, so both are recorded here rather than left
+  // for each screen to guess at.
+  ['department', 'APS', 'APS', 'field', null, null, 0],
+  ['department', 'IMI', 'IMI & Classification', 'field', null, null, 1],
+  ['department', 'Lab', 'Lab', null, null, null, 2],
+  ['department', 'Auditing', 'Auditing', null, null, null, 3],
+  ['department', 'Vet', 'Vet Services', null, null, null, 4],
+  ['department', 'Training', 'Training', null, null, null, 5],
+  ['department', 'Egg', 'Egg Production Verification', null, null, null, 6],
+
+  // Competence matrix legend.
+  ['competence_legend', 'ok', 'Valid', 'ok', null, null, 0],
+  ['competence_legend', 'warn', 'Expires within 60 days', 'warn', null, null, 1],
+  ['competence_legend', 'bad', 'Expired \u2014 placement blocked', 'bad', null, null, 2],
+  ['competence_legend', 'na', 'Not required for role', 'na', null, null, 3],
+
+  // Leave queue: status tabs, coverage verdicts, sort orders. The leave_sort
+  // codes must match the server's sort whitelist.
+  ['leave_status', 'pending', 'To decide', 'na', null, null, 0],
+  ['leave_status', 'approved', 'Approved', 'ok', null, null, 1],
+  ['leave_status', 'declined', 'Declined', 'bad', null, null, 2],
+  ['coverage', 'bad', 'Site short', 'bad', null, null, 0],
+  ['coverage', 'warn', 'Runs tight', 'warn', null, null, 1],
+  ['coverage', 'ok', 'No impact', 'ok', null, null, 2],
+  ['leave_sort', 'urgent', 'Most urgent', null, null, null, 0],
+  ['leave_sort', 'soonest', 'Starts soonest', null, null, null, 1],
+  ['leave_sort', 'latest', 'Starts latest', null, null, null, 2],
+  ['leave_sort', 'longest', 'Longest first', null, null, null, 3],
+  ['leave_sort', 'name', 'Employee A\u2013Z', null, null, null, 4],
+  ['leave_sort', 'site', 'Site A\u2013Z', null, null, null, 5],
+
+  // Performance cycle stages (handoff §5.6): objectives set -> mid-year ->
+  // year-end -> closed.
+  ['perf_stage', 'objectives', 'Objectives set', 'info', null, null, 0],
+  ['perf_stage', 'midyear', 'Mid-year', 'warn', null, null, 1],
+  ['perf_stage', 'yearend', 'Year-end', 'warn', null, null, 2],
+  ['perf_stage', 'closed', 'Closed', 'ok', null, null, 3],
+
+  // State of each of the three pack documents.
+  ['perf_doc_state', 'complete', 'Complete', 'ok', null, null, 0],
+  ['perf_doc_state', 'draft', 'Draft', 'warn', null, null, 1],
+  ['perf_doc_state', 'outstanding', 'Outstanding', 'bad', null, null, 2],
+
+  // Rating scale. "Meets" is 3; 1 and 2 are shortfalls that produce EDP goals.
+  ['perf_rating', '1', 'Well below', 'bad', null, null, 1],
+  ['perf_rating', '2', 'Below', 'bad', null, null, 2],
+  ['perf_rating', '3', 'Meets', 'ok', null, null, 3],
+  ['perf_rating', '4', 'Exceeds', 'ok', null, null, 4],
+  ['perf_rating', '5', 'Outstanding', 'ok', null, null, 5],
+
+  // Status classes used by the monthly report's indicator table.
+  ['report_status', 'ok', 'On target', 'ok', null, null, 0],
+  ['report_status', 'observation', 'Observation', 'warn', null, null, 1],
+  ['report_status', 'finding', 'Finding', 'bad', null, null, 2],
+
+  // Directory sort orders. Codes must match the server's sort whitelist.
+  ['staff_sort', 'attention', 'Needs attention first', null, null, null, 0],
+  ['staff_sort', 'name', 'Name A–Z', null, null, null, 1],
+  ['staff_sort', 'site', 'Site A–Z', null, null, null, 2],
+  ['staff_sort', 'service', 'Service A–Z', null, null, null, 3],
+  ['staff_sort', 'expiry', 'Registration expiry', null, null, null, 4],
+
+  // The three documents that make up an employee pack on a requisition. The
+  // code is the FsaRequisitions column the tick writes to.
+  ['pack_item', 'PackIjd', 'Inspector job description (IJD)', null, 'Duties, mandate, reporting line and the registration the placement requires.', null, 0],
+  ['pack_item', 'PackKpi', 'KPI and KPA schedule', null, 'Measurable targets \u2014 facilities per day, sampling volumes, reporting deadlines.', null, 1],
+  ['pack_item', 'PackEdp', 'Employee development plan (EDP)', null, 'The Red to Green route for this role, with the department template that applies.', null, 2],
+];
+
+// [route, icon, title, sub, countKey, countOne, countMany, countZero, sort]
+// {n} in a count phrase is replaced with the live figure.
+export const QUICK_ACTIONS = [
+  ['/leave', 'fas fa-calendar-check', 'Approve leave', 'Decide requests against site coverage', 'pending', '{n} request waiting on you', '{n} requests waiting on you', 'Nothing waiting', 0],
+  ['/directory', 'fas fa-map-location-dot', 'Change a placement', 'Move an inspector between sites', null, null, null, null, 1],
+  ['/red-to-green', 'fas fa-traffic-light', 'Start onboarding', 'Begin a Red to Green programme', null, null, null, null, 2],
+  ['/recruitment', 'fas fa-user-plus', 'Recruitment pipeline', 'Move candidates between stages', null, null, null, null, 3],
+];
+
+// [screen, title, body, detail, againstLabel, againstValue, againstBasis,
+//  forLabel, forValue, forBasis, sort]
+// The two figures are columns, so the dashboard no longer recovers them by
+// running a regular expression over the prose.
+export const DECISIONS = [
+  [
+    'dash',
+    'Decision for the directors',
+    'Rustenburg and Bethlehem need two permanent inspectors to end reliance on relief cover.',
+    'Relief travel and overtime at the two sites came to R 214 800 over six months against an estimated R 96 000 for two permanent appointments.',
+    'Relief cover, spent', 'R 214 800', 'Travel and overtime across the two sites, six months',
+    'Two permanent posts', 'R 96 000', 'Estimated cost of the two appointments',
+    0,
+  ],
+];

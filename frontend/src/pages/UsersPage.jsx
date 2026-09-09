@@ -159,6 +159,10 @@ export default function UsersPage() {
   );
 }
 
+// Sentinel for the Linked person field: create a new employee record instead
+// of picking one that already exists.
+const NEW_PERSON = '__new__';
+
 function UserModal({ mode, user, isSelf, onClose, onSaved }) {
   const [email, setEmail] = useState(user?.email ?? '');
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
@@ -170,6 +174,11 @@ function UserModal({ mode, user, isSelf, onClose, onSaved }) {
     return base;
   });
   const [employeeId, setEmployeeId] = useState(user?.employeeId ? String(user.employeeId) : '');
+  // NEW_PERSON in the Linked person field opens an inline form that creates the
+  // employee record and links this account to it in one save. Employees used to
+  // be addable only from the org chart, so there was no way to bring a new
+  // person into the system from here at all.
+  const [newPerson, setNewPerson] = useState({ companyId: '', name: '', title: '', department: '', managerId: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -183,10 +192,16 @@ function UserModal({ mode, user, isSelf, onClose, onSaved }) {
         const cos = await api.listCompanies();
         const groups = await Promise.all(
           cos.map((c) => api.listEmployees(c.id)
-            .then((es) => ({ name: c.name, employees: es }))
-            .catch(() => ({ name: c.name, employees: [] })))
+            .then((es) => ({ id: c.id, name: c.name, employees: es }))
+            .catch(() => ({ id: c.id, name: c.name, employees: [] })))
         );
-        if (alive) setCompanies(groups.filter((g) => g.employees.length > 0));
+        if (alive) {
+          setCompanies(groups);
+          // Default the new-person form to the only company, when there is one.
+          if (groups.length === 1) {
+            setNewPerson((p) => ({ ...p, companyId: String(groups[0].id) }));
+          }
+        }
       } catch { /* leave empty */ } finally {
         if (alive) setEmpLoading(false);
       }
@@ -206,12 +221,29 @@ function UserModal({ mode, user, isSelf, onClose, onSaved }) {
     if (mode === 'create' && !EMAIL_RE.test(email.trim())) { setErr('Enter a valid email address'); return; }
     if (mode === 'create' && password.length < 6) { setErr('Password must be at least 6 characters'); return; }
     if (mode === 'edit' && password && password.length < 6) { setErr('New password must be at least 6 characters'); return; }
-    const employeeIdValue = employeeId ? parseInt(employeeId, 10) : null;
+    const creatingPerson = employeeId === NEW_PERSON;
+    if (creatingPerson) {
+      if (!newPerson.name.trim()) { setErr('Enter the new person’s name'); return; }
+      if (!newPerson.companyId) { setErr('Choose which company the new person belongs to'); return; }
+    }
+    let employeeIdValue = creatingPerson ? null : (employeeId ? parseInt(employeeId, 10) : null);
     const permPayload = {};
     for (const s of SEGMENTS) if (permissions[s] !== 'none') permPayload[s] = permissions[s];
 
     setBusy(true);
     try {
+      // The person has to exist before the account can point at them.
+      if (creatingPerson) {
+        const created = await api.createEmployee({
+          companyId: parseInt(newPerson.companyId, 10),
+          name: newPerson.name.trim(),
+          title: newPerson.title.trim() || null,
+          department: newPerson.department.trim() || null,
+          email: (mode === 'create' ? email : user?.email || '').trim() || null,
+          managerId: newPerson.managerId ? parseInt(newPerson.managerId, 10) : null,
+        });
+        employeeIdValue = created.id;
+      }
       const common = { accountType, permissions: permPayload, employeeId: employeeIdValue };
       if (mode === 'create') {
         await api.createUser({ email: email.trim(), displayName: displayName.trim() || null, password, ...common });
@@ -264,18 +296,22 @@ function UserModal({ mode, user, isSelf, onClose, onSaved }) {
           <label htmlFor="u-emp">Linked person {accountType === 'superadmin' ? '(optional)' : ''}</label>
           <select id="u-emp" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} disabled={empLoading}>
             <option value="">{empLoading ? 'Loading people…' : '— Not linked —'}</option>
-            {companies.map((g) => (
+            {!empLoading && <option value={NEW_PERSON}>＋ Add a new person…</option>}
+            {companies.filter((g) => g.employees.length > 0).map((g) => (
               <optgroup key={g.name} label={g.name}>
                 {g.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
               </optgroup>
             ))}
           </select>
-          <small className="muted">
-            {accountType === 'superadmin'
-              ? 'Optional — places them in the org chart.'
-              : 'Links their KPI reviews and their place in the org chart.'}
-          </small>
+          {employeeId !== NEW_PERSON && (
+            <small className="muted">
+              {accountType === 'superadmin'
+                ? 'Optional — places them in the org chart.'
+                : 'Links their KPI reviews and their place in the org chart.'}
+            </small>
+          )}
         </div>
+
 
         <div className="field">
           <label htmlFor="u-pass">
@@ -329,6 +365,82 @@ function UserModal({ mode, user, isSelf, onClose, onSaved }) {
         )}
 
           </div>
+
+        {/* Creating the person here rather than sending the user to the org
+            chart and back. Saving creates the employee record and links this
+            account to it in one go. */}
+        {employeeId === NEW_PERSON && (
+          <div className="new-person-block">
+            <div className="new-person-head">New person</div>
+
+            {/* Its own grid. Reusing .user-form-grid here nested the modal's
+                272px/1fr outer split inside the 272px column, which squeezed
+                the inputs down to a few pixels. */}
+            <div className="new-person-grid">
+              <div className="field">
+                <label htmlFor="np-name">Full name <span className="req">required</span></label>
+                <input
+                  id="np-name"
+                  value={newPerson.name}
+                  autoFocus
+                  onChange={(e) => setNewPerson((v) => ({ ...v, name: e.target.value }))}
+                  placeholder="e.g. Thandi Mokoena"
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="np-title">Job title</label>
+                <input
+                  id="np-title"
+                  value={newPerson.title}
+                  onChange={(e) => setNewPerson((v) => ({ ...v, title: e.target.value }))}
+                  placeholder="e.g. Meat inspector"
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="np-dept">Department</label>
+                <input
+                  id="np-dept"
+                  value={newPerson.department}
+                  onChange={(e) => setNewPerson((v) => ({ ...v, department: e.target.value }))}
+                  placeholder="e.g. IMI &amp; Classification"
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="np-co">Company <span className="req">required</span></label>
+                <select
+                  id="np-co"
+                  value={newPerson.companyId}
+                  onChange={(e) => setNewPerson((v) => ({ ...v, companyId: e.target.value, managerId: '' }))}
+                >
+                  <option value="">— Choose —</option>
+                  {companies.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+
+              <div className="field">
+                <label htmlFor="np-mgr">Reports to</label>
+                <select
+                  id="np-mgr"
+                  value={newPerson.managerId}
+                  onChange={(e) => setNewPerson((v) => ({ ...v, managerId: e.target.value }))}
+                  disabled={!newPerson.companyId}
+                >
+                  <option value="">— No manager —</option>
+                  {(companies.find((g) => String(g.id) === String(newPerson.companyId))?.employees || [])
+                    .map((emp) => <option key={emp.id} value={emp.id}>{emp.name}{emp.title ? ` · ${emp.title}` : ''}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <small className="muted">
+              This creates the person on the company and links this account to them, so their
+              KPI reviews and their place in the org chart both follow.
+            </small>
+          </div>
+        )}
         </div>
 
         <div className="modal-actions">

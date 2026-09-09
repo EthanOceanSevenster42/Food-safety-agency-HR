@@ -19,6 +19,7 @@ const HUB_NAV = [
     items: [
       { to: '/hr-home', label: 'HR home', icon: 'fas fa-house' },
       { to: '/management-dashboard', label: 'Management dashboard', icon: 'fas fa-chart-line' },
+      { to: '/monthly-report', label: 'Monthly management report', icon: 'fas fa-file-lines' },
     ],
   },
   {
@@ -26,6 +27,7 @@ const HUB_NAV = [
     items: [
       { to: '/directory', label: 'Directory & placements', icon: 'fas fa-address-book' },
       { to: '/competence', label: 'Competence & registrations', icon: 'fas fa-certificate', count: 'CompetenceFlags' },
+      { to: '/performance', label: 'Performance management', icon: 'fas fa-chart-simple' },
       { to: '/requisitions', label: 'Role requisitions', icon: 'fas fa-file-signature', count: 'ReqsOpen' },
       { to: '/recruitment', label: 'Recruitment', icon: 'fas fa-user-plus' },
     ],
@@ -78,13 +80,13 @@ export default function ApsShell() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(true);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [counts, setCounts] = useState({});
 
   // Restore the sidebar preferences after mount.
   useEffect(() => {
     setCollapsed(readFlag('fsa.sidebarCollapsed'));
-    setToolsOpen(readFlag('fsa.toolsOpen', true));
+    setToolsOpen(readFlag('fsa.toolsOpen', false));
   }, []);
 
   // Badge counts come from the registers so the sidebar cannot drift from them.
